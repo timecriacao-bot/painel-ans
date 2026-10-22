@@ -33,7 +33,7 @@ jobs:
       - run: python ans_update.py --ufs GO,MT,MS,DF,SP,RJ,MG,ES
       - run: |
           mkdir site
-          cp index.html data.js site/
+          cp index.html data.js data.json site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
