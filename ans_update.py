@@ -244,6 +244,18 @@ def build_benef(months, ufs):
             if m == wanted[-1]:
                 for (u, cm, nmun, cd), q in mun.items():
                     muni.append([u, cm, nmun, cd, q])
+    # municipios: guarda so as 8 maiores operadoras de cada um (o painel so mostra essas)
+    by_mun = defaultdict(list)
+    for r in muni:
+        by_mun[(r[0], r[1])].append(r)
+    muni = []
+    for rows in by_mun.values():
+        rows.sort(key=lambda x: -x[4])
+        muni += rows[:8]
+        resto = sum(r[4] for r in rows[8:])
+        if resto:  # mantem o total do municipio correto
+            muni.append([rows[0][0], rows[0][1], rows[0][2], "_outros", resto])
+    print(f"UFs processadas: {sorted({s[1] for s in series})}")
     return wanted, series, ops, muni
 
 
@@ -625,6 +637,30 @@ def main():
     out.write_text("window.ANS_DATA = " + txt + ";", encoding="utf-8")
     (HERE / "data.json").write_text(txt, encoding="utf-8")  # usado pelo plugin do WordPress
     print(f"OK -> {out} e data.json ({out.stat().st_size / 1e6:.1f} MB). Abra index.html no navegador.")
+    gerar_modelo_comissoes(wanted, series, ops)
+
+
+def gerar_modelo_comissoes(wanted, series, ops):
+    """Planilha modelo de comissoes ja listando operadora x UF x tipo com beneficiarios no ultimo mes."""
+    try:
+        from modelo_comissoes import build_modelo
+    except ImportError as e:
+        print("AVISO: modelo de comissoes nao gerado (instale openpyxl):", e)
+        return
+    last = len(wanted) - 1
+    agg = defaultdict(int)
+    for mi, uf, cd, ci, q in series:
+        if mi == last and ci < 3 and q > 0:  # 3 = 'Outros' (tipo nao identificado)
+            agg[(cd, uf, ci)] += q
+    rows = [{"reg": str(cd), "nome": ops.get(cd, {}).get("n", str(cd)), "mod": ops.get(cd, {}).get("m", ""),
+             "uf": uf, "tipo": CONTRS[ci], "ben": q} for (cd, uf, ci), q in agg.items()]
+    rows.sort(key=lambda r: (r["uf"], -r["ben"]))
+    comp = f"{wanted[-1][4:]}/{wanted[-1][:4]}"
+    try:
+        n = build_modelo(rows, comp, HERE / "modelo-comissoes.xlsx")
+        print(f"Modelo de comissoes: modelo-comissoes.xlsx ({n} linhas, {len({r['reg'] for r in rows})} operadoras)")
+    except Exception as e:  # noqa
+        print("AVISO: falha gerando o modelo de comissoes:", e)
 
 
 if __name__ == "__main__":
