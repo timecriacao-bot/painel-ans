@@ -33,7 +33,7 @@
   .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
   .kpi small{color:var(--mut);display:block;font-size:11px}
   .kpi strong{font-size:22px}
-  .tabs{display:flex;gap:6px;margin-top:14px}
+  .tabs{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
   .tab{padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);cursor:pointer;color:var(--ink)}
   .tab.on{background:var(--p3);border-color:var(--p);color:var(--p);font-weight:600}
   table{width:100%;border-collapse:collapse;font-size:13px}
@@ -46,13 +46,28 @@
   .tag.ok{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
   .tag.mid{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
   .tag.bad{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}
+  .seg{padding:1px 6px;border-radius:6px;font-size:11px;font-weight:600;background:var(--p3);color:var(--p)}
   .pos{color:var(--ok)} .neg{color:var(--bad)}
+  .est{color:var(--mut);font-size:11px}
   .weights{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:10px}
   .weights input{width:100%}
   .note{color:var(--mut);font-size:12px;margin-top:8px}
   svg text{fill:var(--mut);font-size:10px}
   .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}
   .hidden{display:none}
+  .pot-head{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;justify-content:space-between}
+  .src{color:var(--mut);font-size:11px;line-height:1.5;flex:1 1 420px}
+  .src b{color:var(--ink);font-weight:600}
+  .quad{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px}
+  .q{border:1px solid var(--line);border-radius:10px;padding:10px;border-top:4px solid var(--qc)}
+  .q h4{margin:0 0 2px;font-size:13px}
+  .q p{margin:0 0 6px;color:var(--mut);font-size:12px}
+  .q .ufs{font-size:12px;font-weight:600}
+  .miss{background:color-mix(in srgb,var(--warn) 12%,transparent);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);color:var(--ink);border-radius:10px;padding:8px 10px;font-size:12px;margin-top:10px}
+  .leg{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--mut);margin-top:4px}
+  .leg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+  .foco{font-size:10px;color:var(--p);font-weight:700;margin-left:4px}
+  h3{font-size:14px;margin:16px 0 6px}
 </style>
 </head>
 <body>
@@ -73,10 +88,11 @@
       <label>Mín. de beneficiários <input type="number" id="min" value="5000" min="0" step="1000"></label>
     </div>
     <div class="weights">
-      <label>Crescimento: <span id="w1v"></span><input type="range" id="w1" min="0" max="100" value="35"></label>
-      <label>Reputação (reclamações): <span id="w2v"></span><input type="range" id="w2" min="0" max="100" value="25"></label>
-      <label>Solidez financeira: <span id="w3v"></span><input type="range" id="w3" min="0" max="100" value="25"></label>
-      <label>Porte (volume): <span id="w4v"></span><input type="range" id="w4" min="0" max="100" value="15"></label>
+      <label>Crescimento: <span id="w1v"></span><input type="range" id="w1" min="0" max="100" value="30"></label>
+      <label>Reclamações (IGR): <span id="w2v"></span><input type="range" id="w2" min="0" max="100" value="25"></label>
+      <label>Qualidade (IDSS): <span id="w5v"></span><input type="range" id="w5" min="0" max="100" value="20"></label>
+      <label>Solidez financeira: <span id="w3v"></span><input type="range" id="w3" min="0" max="100" value="15"></label>
+      <label>Porte (volume): <span id="w4v"></span><input type="range" id="w4" min="0" max="100" value="10"></label>
     </div>
     <div class="note" id="avail"></div>
   </div>
@@ -87,11 +103,12 @@
     <div class="tab on" data-t="rank">Ranking de operadoras</div>
     <div class="tab" data-t="mercado">Mercado</div>
     <div class="tab" data-t="mun">Municípios</div>
+    <div class="tab" data-t="pot">Análise de Potencial por Região</div>
   </div>
 
   <div id="t-rank" class="card">
     <div class="scroll"><table id="rank"></table></div>
-    <div class="note">Score 0–100 = média ponderada (pesos acima) de: crescimento de beneficiários em 12 meses, reclamações NIP por 10 mil beneficiários (menos é melhor), solidez (patrimônio líquido positivo e sinistralidade próxima de 70–80%) e porte. Indicador de apoio, não recomendação comercial: confirme comissões e regras com cada operadora.</div>
+    <div class="note">Score 0–100 = média ponderada (pesos acima) de: crescimento de beneficiários em 12 meses; IGR oficial da ANS, média dos últimos 12 meses (reclamações por 100 mil beneficiários, menos é melhor; sem IGR, usa a contagem NIP e marca com *); IDSS do programa de qualificação da ANS (0 a 1); solidez (patrimônio líquido positivo e sinistralidade próxima de 70–80%); e porte. O segmento prudencial (S1 a S4) é só informativo: a ANS classifica pelo tamanho da receita, não pelo risco. Indicador de apoio, não recomendação comercial: confirme comissões e regras com cada operadora.</div>
   </div>
 
   <div id="t-mercado" class="card hidden">
@@ -106,6 +123,29 @@
     <div class="scroll" style="margin-top:10px"><table id="muntb"></table></div>
     <div class="note">Mês mais recente, apenas das operadoras com mais beneficiários em cada município (as 8 maiores).</div>
   </div>
+
+  <div id="t-pot" class="card hidden">
+    <div class="pot-head">
+      <div class="src" id="pot-src"></div>
+      <label>Tipo de plano <select id="pot-tipo"><option value="med">Assistência médica</option><option value="odo">Exclusivamente odontológico</option></select></label>
+    </div>
+    <div class="kpis" id="pot-kpis"></div>
+    <div id="pot-miss"></div>
+
+    <h3>Por região</h3>
+    <div class="scroll" style="max-height:none"><table id="pot-reg"></table></div>
+    <div class="sub" style="margin-top:12px">Penetração por região (% da população)</div>
+    <svg id="pot-regbars" viewBox="0 0 520 190" width="100%" style="max-width:720px"></svg>
+
+    <h3>Penetração × renda por estado</h3>
+    <svg id="pot-scatter" viewBox="0 0 680 400" width="100%" role="img" aria-label="Dispersão de penetração de planos versus renda domiciliar per capita por estado"></svg>
+    <div class="leg" id="pot-leg"></div>
+    <div class="quad" id="pot-quad"></div>
+
+    <h3>Ranking dos estados por penetração</h3>
+    <div class="scroll"><table id="pot-uf"></table></div>
+    <div class="note" id="pot-note"></div>
+  </div>
 </main>
 <script src="data.js"></script>
 <script>
@@ -118,12 +158,20 @@ const CONTRS = ["Individual/familiar","Coletivo empresarial","Coletivo por ades�
 const $ = id => document.getElementById(id);
 const fmt = n => Math.round(n).toLocaleString("pt-BR");
 const pct = n => (n>=0?"+":"") + (n*100).toFixed(1).replace(".",",") + "%";
+const dec = (n,d) => n.toFixed(d).replace(".",",");
 const mesLabel = m => m.slice(4)+"/"+m.slice(0,4);
+const IGR = D.igr||{}, IDSS = D.idss||{}, PRUD = D.prud||{}, REFS = D.refs||{};
 
 let regSel = new Set(["Centro-Oeste","Sudeste"]);
 
 if (D.demo) $("demo").classList.remove("hidden");
-$("ref").textContent = `Competência ${mesLabel(D.meses[D.meses.length-1])} · gerado em ${D.gerado_em} · fonte: ANS (dados abertos)`;
+{
+  const extra = [];
+  if (REFS.igr) extra.push(`IGR ${REFS.igr}`);
+  if (REFS.idss) extra.push(`IDSS ${REFS.idss}`);
+  if (REFS.prud) extra.push(`prudencial ${REFS.prud.split("-").reverse().join("/")}`);
+  $("ref").textContent = `Competência ${mesLabel(D.meses[D.meses.length-1])} · gerado em ${D.gerado_em}` + (extra.length ? " · " + extra.join(" · ") : "") + " · fonte: ANS (dados abertos)";
+}
 
 // --- filtros
 function buildChips(){
@@ -136,11 +184,12 @@ function buildChips(){
 const ufsAll = [...new Set(D.series.map(r=>r[1]))].sort();
 $("uf").innerHTML = '<option value="">Todas da região</option>' + ufsAll.map(u=>`<option>${u}</option>`).join("");
 $("contr").innerHTML = '<option value="">Todas</option><option value="coletivo">Todos os coletivos</option>' + CONTRS.map((c,i)=>`<option value="${i}">${c}</option>`).join("");
-["uf","contr","min","w1","w2","w3","w4"].forEach(id => $(id).addEventListener("input", refresh));
+["uf","contr","min","w1","w2","w3","w4","w5"].forEach(id => $(id).addEventListener("input", refresh));
 $("q").addEventListener("input", renderMun);
+$("pot-tipo").addEventListener("input", renderPot);
 document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
   document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===t));
-  ["rank","mercado","mun"].forEach(k=>$("t-"+k).classList.toggle("hidden",k!==t.dataset.t));
+  ["rank","mercado","mun","pot"].forEach(k=>$("t-"+k).classList.toggle("hidden",k!==t.dataset.t));
 });
 
 function selUFs(){
@@ -174,26 +223,38 @@ function compute(){
     if (mi===last) o.now += q;
     if (mi===base) o.base += q;
   }
-  const hasNip = Object.keys(D.nip||{}).length>0, hasFin = Object.keys(D.fin||{}).length>0;
+  const has = {
+    igr: Object.keys(IGR).length>0, idss: Object.keys(IDSS).length>0,
+    nip: Object.keys(D.nip||{}).length>0, fin: Object.keys(D.fin||{}).length>0, prud: Object.keys(PRUD).length>0,
+  };
   let list = Object.values(byOp).filter(o => o.now>=minB);
   list.forEach(o => {
     const info = D.ops[o.cd] || {n:o.cd,m:""};
     o.nome = info.n; o.mod = info.m;
     o.cresc = o.base>0 ? o.now/o.base-1 : null;
+    const g = IGR[o.cd];
+    o.igr = g && g.i12!=null ? g.i12 : (g && g.i!=null ? g.i : null);
+    // NIP só como reserva para quem não tem IGR (contagem anual / 10 mil beneficiários do filtro)
     const n = D.nip && D.nip[o.cd];
-    o.nip = (n!=null && o.now>0) ? n / (o.now/10000) : null;
+    o.nip = (o.igr==null && n!=null && o.now>0) ? n / (o.now/10000) : null;
+    const q = IDSS[o.cd];
+    o.idss = q ? q.v : null; o.idssAno = q ? q.ano : null;
+    o.seg = PRUD[o.cd] || null;
     const f = D.fin && D.fin[o.cd];
     o.pl = f ? f.pl : null; o.sin = f ? f.sin : null;
   });
-  const W = {c:+$("w1").value, n:+$("w2").value, f:+$("w3").value, p:+$("w4").value};
-  $("w1v").textContent=W.c; $("w2v").textContent=W.n; $("w3v").textContent=W.f; $("w4v").textContent=W.p;
+  const W = {c:+$("w1").value, r:+$("w2").value, q:+$("w5").value, f:+$("w3").value, p:+$("w4").value};
+  $("w1v").textContent=W.c; $("w2v").textContent=W.r; $("w5v").textContent=W.q; $("w3v").textContent=W.f; $("w4v").textContent=W.p;
   const cv = list.map(o=>o.cresc).filter(x=>x!=null);
+  const iv = list.map(o=>o.igr).filter(x=>x!=null);
   const nv = list.map(o=>o.nip).filter(x=>x!=null);
   const pv = list.map(o=>Math.log(o.now+1));
   list.forEach(o => {
     const parts = [];
     if (o.cresc!=null) parts.push([W.c, pctRank(cv,o.cresc)]);
-    if (o.nip!=null)   parts.push([W.n, 1-pctRank(nv,o.nip)]);
+    if (o.igr!=null)      parts.push([W.r, 1-pctRank(iv,o.igr)]);
+    else if (o.nip!=null) parts.push([W.r, 1-pctRank(nv,o.nip)]);
+    if (o.idss!=null) parts.push([W.q, Math.max(0, Math.min(1, o.idss))]);
     if (o.sin!=null || o.pl!=null){
       let s = 0.5;
       if (o.sin!=null) s = Math.max(0, 1 - Math.abs(o.sin-0.75)/0.25);
@@ -204,12 +265,18 @@ function compute(){
     const tw = parts.reduce((a,p)=>a+p[0],0);
     o.score = tw>0 ? 100*parts.reduce((a,p)=>a+p[0]*p[1],0)/tw : 0;
     // alertas
-    o.alerta = (o.pl!=null && o.pl<=0) || (o.cresc!=null && o.cresc<-0.05);
+    o.motivos = [];
+    if (o.pl!=null && o.pl<=0) o.motivos.push("patrimônio líquido negativo");
+    if (o.cresc!=null && o.cresc<-0.05) o.motivos.push("perdeu mais de 5% dos beneficiários");
+    if (o.idss!=null && o.idss<0.4) o.motivos.push("IDSS abaixo de 0,4");
   });
+  if (iv.length){ const cut = [...iv].sort((a,b)=>a-b)[Math.floor(iv.length*0.9)];
+    list.forEach(o=>{ if (o.igr!=null && o.igr>=cut) o.motivos.push("IGR entre os 10% piores do filtro"); }); }
   if (nv.length){ const cut = [...nv].sort((a,b)=>a-b)[Math.floor(nv.length*0.9)];
-    list.forEach(o=>{ if (o.nip!=null && o.nip>=cut) o.alerta = true; }); }
+    list.forEach(o=>{ if (o.nip!=null && o.nip>=cut) o.motivos.push("reclamações NIP entre as 10% piores"); }); }
+  list.forEach(o => o.alerta = o.motivos.length>0);
   list.sort((a,b)=>b.score-a.score);
-  cur = {list, byMonth, ufs, hasNip, hasFin};
+  cur = {list, byMonth, ufs, has};
 }
 
 // --- render
@@ -223,23 +290,29 @@ function renderKpis(){
   ];
   $("kpis").innerHTML = k.map(([a,b])=>`<div class="kpi"><small>${a}</small><strong>${b}</strong></div>`).join("");
   const miss = [];
-  if (!cur.hasNip) miss.push("reclamações (NIP)");
-  if (!cur.hasFin) miss.push("dados financeiros");
-  $("avail").textContent = miss.length ? "Sem dados de " + miss.join(" e ") + ": esses critérios ficam fora do score (o peso é redistribuído)." : "";
+  if (!cur.has.igr && !cur.has.nip) miss.push("reclamações (IGR/NIP)");
+  else if (!cur.has.igr) miss.push("IGR (usando a contagem NIP no lugar)");
+  if (!cur.has.idss) miss.push("IDSS");
+  if (!cur.has.fin) miss.push("dados financeiros");
+  if (!cur.has.prud) miss.push("classificação prudencial");
+  $("avail").textContent = miss.length ? "Sem dados de " + miss.join(", ") + ". Critérios sem dados ficam fora do score (o peso é redistribuído)." : "";
 }
 
 function renderRank(){
   const maxN = Math.max(1, ...cur.list.map(o=>o.now));
   const rows = cur.list.slice(0,150).map((o,i)=>{
-    const tag = o.alerta ? '<span class="tag bad">Atenção</span>' : (o.score>=65 ? '<span class="tag ok">Indicada</span>' : '<span class="tag mid">Neutra</span>');
+    const tag = o.alerta ? `<span class="tag bad" title="${o.motivos.join("; ")}">Atenção</span>` : (o.score>=65 ? '<span class="tag ok">Indicada</span>' : '<span class="tag mid">Neutra</span>');
     const c = o.cresc==null ? "—" : `<span class="${o.cresc>=0?"pos":"neg"}">${pct(o.cresc)}</span>`;
+    const r = o.igr!=null ? dec(o.igr,1) : (o.nip!=null ? `<span class="est" title="Sem IGR: reclamações NIP por 10 mil beneficiários">${dec(o.nip,1)}*</span>` : "—");
+    const q = o.idss!=null ? `<span title="IDSS ${o.idssAno}">${dec(o.idss,2)}</span>` : "—";
     return `<tr><td>${i+1}</td><td title="${o.nome}">${o.nome.slice(0,38)}</td><td>${o.mod.slice(0,22)}</td>
       <td><span class="bar" style="width:${Math.max(2,o.now/maxN*60)}px"></span>${fmt(o.now)}</td>
-      <td>${c}</td><td>${o.nip==null?"—":o.nip.toFixed(1).replace(".",",")}</td>
+      <td>${c}</td><td>${r}</td><td>${q}</td>
       <td>${o.sin==null?"—":(o.sin*100).toFixed(0)+"%"}</td>
+      <td>${o.seg?`<span class="seg" title="Segmento prudencial (porte por receita)">${o.seg}</span>`:"—"}</td>
       <td><b>${o.score.toFixed(0)}</b></td><td>${tag}</td></tr>`;
   }).join("");
-  $("rank").innerHTML = `<thead><tr><th>#</th><th>Operadora</th><th>Modalidade</th><th>Beneficiários</th><th>Cresc.</th><th>NIP/10 mil</th><th>Sinistr.</th><th>Score</th><th>Selo</th></tr></thead><tbody>${rows}</tbody>`;
+  $("rank").innerHTML = `<thead><tr><th>#</th><th>Operadora</th><th>Modalidade</th><th>Beneficiários</th><th>Cresc.</th><th title="Reclamações por 100 mil beneficiários, média de 12 meses">IGR</th><th title="Índice de Desempenho da Saúde Suplementar, 0 a 1">IDSS</th><th>Sinistr.</th><th title="Classificação prudencial da ANS (porte)">Seg.</th><th>Score</th><th>Selo</th></tr></thead><tbody>${rows}</tbody>`;
 }
 
 function renderLine(){
@@ -281,7 +354,155 @@ function renderMun(){
   $("muntb").innerHTML = `<thead><tr><th>Município</th><th>UF</th><th>Beneficiários</th><th style="text-align:left">Maiores operadoras</th></tr></thead><tbody>${rows}</tbody>`;
 }
 
-function refresh(){ buildChips(); compute(); renderKpis(); renderRank(); renderLine(); renderBars(); renderMun(); }
+// --- Análise de Potencial por Região
+const UFNOME = {AC:"Acre",AL:"Alagoas",AM:"Amazonas",AP:"Amapá",BA:"Bahia",CE:"Ceará",DF:"Distrito Federal",ES:"Espírito Santo",GO:"Goiás",MA:"Maranhão",MG:"Minas Gerais",MS:"Mato Grosso do Sul",MT:"Mato Grosso",PA:"Pará",PB:"Paraíba",PE:"Pernambuco",PI:"Piauí",PR:"Paraná",RJ:"Rio de Janeiro",RN:"Rio Grande do Norte",RO:"Rondônia",RR:"Roraima",RS:"Rio Grande do Sul",SC:"Santa Catarina",SE:"Sergipe",SP:"São Paulo",TO:"Tocantins"};
+const UF2REG = {}; Object.entries(REG).forEach(([r,us])=>us.forEach(u=>UF2REG[u]=r));
+const REGCOR = {"Norte":"#2a9d8f","Nordeste":"#e07a2f","Centro-Oeste":"#7c4dcc","Sudeste":"#c2417a","Sul":"#3a7bd5"};
+const FOCO = new Set([...REG["Centro-Oeste"], ...REG["Sudeste"]]);
+const QUAD = {
+  cresc:  {t:"Renda alta, cobertura baixa", c:"var(--ok)",  d:"Renda acima da média nacional e penetração abaixo dela. Maior espaço para novas vendas: público com capacidade de pagamento ainda sem plano."},
+  maduro: {t:"Mercado maduro",              c:"var(--p2)",  d:"Renda e penetração acima da média. Muita gente já tem plano: campanhas de troca de operadora, upgrade e coletivos empresariais/PME."},
+  acima:  {t:"Cobertura acima da renda",    c:"var(--warn)",d:"Penetração acima da média com renda abaixo dela. Mercado sustentado por planos empresariais e sensível a preço: foco em custo-benefício."},
+  entrada:{t:"Mercado de entrada",          c:"var(--bad)", d:"Renda e penetração abaixo da média. Volume depende de planos de menor ticket e redes regionais; campanhas com retorno mais lento."},
+};
+const pctf = (x,d=1) => (x*100).toFixed(d).replace(".",",") + "%";
+const brl = n => "R$ " + fmt(n);
+const sumBy = (arr,k) => arr.reduce((a,o)=>a+o[k],0);
+
+function quadOf(u, brPen, brRenda){
+  if (u.pen==null || u.renda==null || brPen==null || brRenda==null) return null;
+  const r = u.renda >= brRenda, p = u.pen >= brPen;
+  return r ? (p ? "maduro" : "cresc") : (p ? "acima" : "entrada");
+}
+
+function renderPot(){
+  const C = D.cob, R = D.renda, tipo = $("pot-tipo").value;
+  const tipoNome = tipo==="med" ? "assistência médica" : "exclusivamente odontológico";
+  const ufs = Object.keys(UFNOME).map(uf => {
+    const c = C && C.ufs ? C.ufs[uf] : null;
+    const ben = c ? c[tipo] : null, pop = c && c.pop ? c.pop : null;
+    const renda = R && R.ufs && R.ufs[uf]!=null ? R.ufs[uf] : null;
+    return {uf, nome:UFNOME[uf], reg:UF2REG[uf], ben, pop, renda, popFonte: c ? c.pop_fonte : null,
+            pen: (ben!=null && pop) ? ben/pop : null, sem: (ben!=null && pop) ? Math.max(0,pop-ben) : null};
+  });
+
+  // dados faltantes (nunca estimados)
+  const miss = [];
+  if (!C) miss.push("Taxa de cobertura da ANS não foi carregada nesta atualização: penetração indisponível para todos os estados.");
+  if (!R) miss.push("Arquivo de renda do IBGE (ibge_renda.json) não foi carregado: renda indisponível.");
+  ufs.forEach(u => {
+    if (C && u.ben==null) miss.push(`${u.uf}: sem beneficiários no arquivo da ANS.`);
+    else if (C && !u.pop) miss.push(`${u.uf}: sem população para o período; penetração não calculada.`);
+    if (R && u.renda==null) miss.push(`${u.uf}: sem renda publicada.`);
+  });
+  $("pot-miss").innerHTML = miss.length ? `<div class="miss"><b>Dados faltantes:</b> ${miss.join(" ")} Esses estados aparecem com “—” e ficam fora dos totais e dos quadrantes.</div>` : "";
+
+  // fontes
+  const fontesPop = [...new Set(ufs.map(u=>u.popFonte).filter(Boolean))];
+  $("pot-src").innerHTML =
+    `<b>Beneficiários:</b> ANS, Taxa de cobertura de planos de saúde${C?`, período ${C.periodo}`:""} (${tipoNome}). ` +
+    `<b>População:</b> ${fontesPop.length ? fontesPop.map(f=>f==="ANS"?"ANS (mesmo arquivo)":f.replace("IBGE","IBGE, estimativa")).join(", ") : "não disponível"}. ` +
+    `<br><b>Renda:</b> ${R ? `${R.indicador}, ${R.ano}. Indicador usado: renda domiciliar per capita, pois o IBGE não publica renda familiar média por estado.` : "não disponível"}`;
+
+  // Brasil
+  const ok = ufs.filter(u=>u.pen!=null);
+  const bBen = sumBy(ok,"ben"), bPop = sumBy(ok,"pop");
+  const brPen = bPop ? bBen/bPop : null, brRenda = R ? R.brasil : null;
+  const parcial = ok.length < 27 ? ` <span class="est">(${ok.length} de 27 UFs)</span>` : "";
+  const topPen = ok.slice().sort((a,b)=>b.pen-a.pen)[0];
+  const comRenda = ufs.filter(u=>u.renda!=null), topR = comRenda.slice().sort((a,b)=>b.renda-a.renda)[0];
+  const k = [
+    ["Penetração Brasil", brPen!=null ? pctf(brPen)+parcial : "—"],
+    ["Renda dom. per capita Brasil", brRenda!=null ? brl(brRenda) : "—"],
+    ["Maior penetração", topPen ? `${topPen.uf} · ${pctf(topPen.pen)}` : "—"],
+    ["Maior renda per capita", topR ? `${topR.uf} · ${brl(topR.renda)}` : "—"],
+    ["Pessoas sem plano"+(tipo==="odo"?" odontológico":""), ok.length ? fmt(sumBy(ok,"sem"))+parcial : "—"],
+  ];
+  $("pot-kpis").innerHTML = k.map(([a,b])=>`<div class="kpi"><small>${a}</small><strong>${b}</strong></div>`).join("");
+
+  // regiões
+  const regs = Object.keys(REG).map(r => {
+    const us = ufs.filter(u=>u.reg===r), o = us.filter(u=>u.pen!=null), rr = us.filter(u=>u.renda!=null).map(u=>u.renda);
+    const ben = sumBy(o,"ben"), pop = sumBy(o,"pop");
+    return {r, n:us.length, nOk:o.length, ben, pop, pen: pop ? ben/pop : null, sem: o.length ? sumBy(o,"sem") : null,
+            rmin: rr.length ? Math.min(...rr) : null, rmax: rr.length ? Math.max(...rr) : null, nR: rr.length};
+  }).sort((a,b)=>(b.pen??-1)-(a.pen??-1));
+  $("pot-reg").innerHTML = `<thead><tr><th>Região</th><th>Penetração</th><th>Beneficiários</th><th>População</th><th>Sem plano</th><th title="O IBGE não publica média regional nesta divulgação">Renda per capita (menor – maior UF)</th></tr></thead><tbody>` +
+    regs.map(g => `<tr><td><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${REGCOR[g.r]};margin-right:6px"></i>${g.r}${g.nOk<g.n?` <span class="est">(${g.nOk}/${g.n} UFs)</span>`:""}</td>
+      <td><b>${g.pen!=null?pctf(g.pen):"—"}</b></td><td>${g.nOk?fmt(g.ben):"—"}</td><td>${g.nOk?fmt(g.pop):"—"}</td><td>${g.sem!=null?fmt(g.sem):"—"}</td>
+      <td>${g.rmin!=null ? (g.rmin===g.rmax?brl(g.rmin):`${brl(g.rmin)} – ${brl(g.rmax)}`) + (g.nR<g.n?` <span class="est">(${g.nR}/${g.n})</span>`:"") : "—"}</td></tr>`).join("") + "</tbody>";
+
+  // barras por região
+  {
+    const W=520, pl=96, pr=56, bh=22, gap=10, top=8, rs = regs.filter(g=>g.pen!=null);
+    const max = Math.max(brPen||0, ...rs.map(g=>g.pen), 0.01) * 1.08, x = v => pl + v/max*(W-pl-pr);
+    let g = rs.map((r,i)=>{ const y = top+i*(bh+gap);
+      return `<text x="${pl-8}" y="${y+bh/2+4}" text-anchor="end" style="font-size:12px">${r.r}</text>
+        <rect x="${pl}" y="${y}" width="${Math.max(1,x(r.pen)-pl)}" height="${bh}" rx="4" fill="${REGCOR[r.r]}"/>
+        <text x="${x(r.pen)+6}" y="${y+bh/2+4}" style="font-size:12px;fill:var(--ink);font-weight:600">${pctf(r.pen)}</text>`; }).join("");
+    if (brPen!=null){ const xb = x(brPen), h = top + rs.length*(bh+gap);
+      g += `<line x1="${xb}" x2="${xb}" y1="2" y2="${h}" stroke="var(--ink)" stroke-dasharray="4 3" opacity=".6"/><text x="${xb}" y="${h+12}" text-anchor="middle">Brasil ${pctf(brPen)}</text>`; }
+    $("pot-regbars").innerHTML = rs.length ? g : `<text x="10" y="20">Sem dados de penetração.</text>`;
+  }
+
+  // dispersão penetração × renda
+  {
+    const W=680, H=400, pl=64, pr=20, pt=16, pb=40, pts = ufs.filter(u=>u.pen!=null && u.renda!=null);
+    if (!pts.length){ $("pot-scatter").innerHTML = `<text x="10" y="20">Sem estados com penetração e renda ao mesmo tempo.</text>`; }
+    else {
+      const xmax = Math.max(...pts.map(u=>u.pen), brPen||0)*1.1, rmin = Math.min(...pts.map(u=>u.renda), brRenda||1e9)*0.9, rmax = Math.max(...pts.map(u=>u.renda), brRenda||0)*1.05;
+      const x = v => pl + v/xmax*(W-pl-pr), y = v => pt + (1-(v-rmin)/(rmax-rmin))*(H-pt-pb);
+      let g = "";
+      for (let i=0;i<=4;i++){ const v = xmax*i/4; g += `<line x1="${x(v)}" x2="${x(v)}" y1="${pt}" y2="${H-pb}" stroke="var(--line)"/><text x="${x(v)}" y="${H-pb+14}" text-anchor="middle">${pctf(v,0)}</text>`; }
+      for (let i=0;i<=4;i++){ const v = rmin+(rmax-rmin)*i/4; g += `<line x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${pl-6}" y="${y(v)+3}" text-anchor="end">${brl(v)}</text>`; }
+      g += `<text x="${(pl+W-pr)/2}" y="${H-6}" text-anchor="middle" style="font-size:11px">Penetração (${tipoNome}, % da população)</text>`;
+      g += `<text transform="translate(12 ${(pt+H-pb)/2}) rotate(-90)" text-anchor="middle" style="font-size:11px">Renda domiciliar per capita</text>`;
+      if (brPen!=null && brRenda!=null){
+        g += `<line x1="${x(brPen)}" x2="${x(brPen)}" y1="${pt}" y2="${H-pb}" stroke="var(--ink)" stroke-dasharray="4 3" opacity=".5"/>`;
+        g += `<line x1="${pl}" x2="${W-pr}" y1="${y(brRenda)}" y2="${y(brRenda)}" stroke="var(--ink)" stroke-dasharray="4 3" opacity=".5"/>`;
+        const ql = (txt,xx,yy,anc,c) => `<text x="${xx}" y="${yy}" text-anchor="${anc}" style="font-size:11px;font-weight:700;fill:${c};paint-order:stroke;stroke:var(--card);stroke-width:4px;opacity:.9">${txt}</text>`;
+        g += ql(QUAD.cresc.t, pl+6, pt+12, "start", QUAD.cresc.c) + ql(QUAD.maduro.t, W-pr-6, pt+12, "end", QUAD.maduro.c)
+           + ql(QUAD.entrada.t, pl+6, H-pb-6, "start", QUAD.entrada.c) + ql(QUAD.acima.t, W-pr-6, H-pb-6, "end", QUAD.acima.c);
+      }
+      const qlabels = g.match(/<text[^>]*paint-order[^>]*>[^<]*<\/text>/g) || [];
+      qlabels.forEach(t => g = g.replace(t, ""));
+      g += pts.map(u => `<g><title>${u.nome}: penetração ${pctf(u.pen)}, renda ${brl(u.renda)}</title>
+        <circle cx="${x(u.pen)}" cy="${y(u.renda)}" r="${FOCO.has(u.uf)?6:5}" fill="${REGCOR[u.reg]}" stroke="var(--card)" stroke-width="1.5"/>
+        <text x="${x(u.pen)+8}" y="${y(u.renda)+4}" style="font-size:11px;fill:var(--ink);font-weight:${FOCO.has(u.uf)?700:400}">${u.uf}</text></g>`).join("");
+      $("pot-scatter").innerHTML = g + qlabels.join("");
+    }
+    $("pot-leg").innerHTML = Object.entries(REGCOR).map(([r,c])=>`<span><i style="background:${c}"></i>${r}</span>`).join("") +
+      `<span>Linhas tracejadas = média Brasil. Siglas em negrito = foco Ramo (CO+SE).</span>`;
+  }
+
+  // quadrantes
+  ufs.forEach(u => u.quad = quadOf(u, brPen, brRenda));
+  $("pot-quad").innerHTML = (brPen!=null && brRenda!=null) ? ["cresc","maduro","acima","entrada"].map(q => {
+    const l = ufs.filter(u=>u.quad===q).sort((a,b)=>b.renda-a.renda);
+    return `<div class="q" style="--qc:${QUAD[q].c}"><h4>${QUAD[q].t} <span class="est">(${l.length})</span></h4><p>${QUAD[q].d}</p>
+      <div class="ufs">${l.length ? l.map(u=>u.uf+(FOCO.has(u.uf)?"<span class='foco'>●</span>":"")).join(", ") : "—"}</div></div>`;
+  }).join("") : `<div class="note">Quadrantes indisponíveis: faltam a penetração ou a renda do Brasil.</div>`;
+
+  // ranking por UF
+  const rank = ufs.slice().sort((a,b)=>(b.pen??-1)-(a.pen??-1));
+  const maxPen = Math.max(0.0001, ...ok.map(u=>u.pen));
+  $("pot-uf").innerHTML = `<thead><tr><th>#</th><th>UF</th><th>Estado</th><th>Região</th><th>Penetração</th><th>Beneficiários</th><th>População</th><th>Renda per capita</th><th>Renda vs Brasil</th><th>Sem plano</th><th>Perfil</th></tr></thead><tbody>` +
+    rank.map((u,i) => {
+      const nota = R && R.notas && R.notas[u.uf] ? ` <span class="est" title="${R.notas[u.uf].replace(/"/g,"&quot;")}">ⓘ</span>` : "";
+      const rv = (u.renda!=null && brRenda) ? `<span class="${u.renda>=brRenda?"pos":"neg"}">${pct(u.renda/brRenda-1)}</span>` : "—";
+      return `<tr><td>${u.pen!=null?i+1:"—"}</td><td><b>${u.uf}</b>${FOCO.has(u.uf)?"<span class='foco'>foco</span>":""}</td><td>${u.nome}</td><td>${u.reg}</td>
+        <td>${u.pen!=null?`<span class="bar" style="width:${Math.max(2,u.pen/maxPen*60)}px;background:${REGCOR[u.reg]}"></span><b>${pctf(u.pen)}</b>`:"—"}</td>
+        <td>${u.ben!=null?fmt(u.ben):"—"}</td><td>${u.pop?fmt(u.pop):"—"}</td>
+        <td>${u.renda!=null?brl(u.renda)+nota:"—"}</td><td>${rv}</td><td>${u.sem!=null?fmt(u.sem):"—"}</td>
+        <td>${u.quad?`<span class="tag" style="background:color-mix(in srgb,${QUAD[u.quad].c} 18%,transparent);color:${QUAD[u.quad].c}">${QUAD[u.quad].t}</span>`:"—"}</td></tr>`;
+    }).join("") + "</tbody>";
+
+  $("pot-note").innerHTML = "Penetração = beneficiários ÷ população residente. A ANS conta vínculos, então uma pessoa com dois planos conta duas vezes: a penetração é um teto, e “sem plano” (população − beneficiários) é um piso. " +
+    "Penetração regional = soma dos beneficiários ÷ soma da população das UFs com dado. A renda regional aparece como faixa entre estados porque o IBGE não publica a média por região nesta divulgação, e o painel não calcula médias que a fonte não publica. " +
+    "Quadrantes: corte na penetração do Brasil (calculada com os mesmos dados) e na renda per capita do Brasil publicada pelo IBGE. A renda é nominal e do ano indicado na fonte, que pode ser diferente do período dos beneficiários.";
+}
+
+function refresh(){ buildChips(); compute(); renderKpis(); renderRank(); renderLine(); renderBars(); renderMun(); renderPot(); }
 refresh();
 </script>
 </body>

@@ -1,0 +1,18 @@
+{
+  "indicador": "Rendimento nominal mensal domiciliar per capita (R$)",
+  "ano": 2025,
+  "fonte": "IBGE, PNAD Contínua 2025 (acumulado de 1ª visita), divulgação 'Rendimento Domiciliar Per Capita 2025' de 27/02/2026, conforme LC 143/2013",
+  "observacao": "O IBGE não publica renda familiar média nem média por grande região nesta divulgação. Atualize este arquivo todo ano após a divulgação de fevereiro.",
+  "brasil": 2316,
+  "ufs": {
+    "RO": 1991, "AC": 1392, "AM": 1484, "RR": 1878, "PA": 1420, "AP": 1697, "TO": 2036,
+    "MA": 1219, "PI": 1546, "CE": 1390, "RN": 1819, "PB": 1543, "PE": 1600, "AL": 1422,
+    "SE": 1697, "BA": 1465,
+    "MG": 2353, "ES": 2249, "RJ": 2794, "SP": 2956,
+    "PR": 2762, "SC": 2809, "RS": 2839,
+    "MS": 2454, "MT": 2335, "GO": 2407, "DF": 4538
+  },
+  "notas": {
+    "RR": "Valor da tabela do IBGE. Nota oficial: em cumprimento a mandado de segurança (Ação Judicial nº 1000261-89.2020.4.01.4200), o valor de Roraima para fins legais é R$ 1.764."
+  }
+}

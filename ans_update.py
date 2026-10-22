@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 Painel ANS - Ramo Hub
-Baixa os dados abertos da ANS (beneficiarios, reclamacoes NIP e demonstracoes
-contabeis), agrega e gera o arquivo data.js que o painel (index.html) le.
+Baixa os dados abertos da ANS (beneficiarios, reclamacoes NIP, demonstracoes
+contabeis e os indices oficiais IGR, IDSS e Classificacao Prudencial), agrega e
+gera os arquivos data.js e data.json que o painel (index.html / plugin WP) le.
 
 Uso:
   pip install pandas
@@ -11,7 +12,11 @@ Uso:
   python ans_update.py --inspect            # mostra pastas/colunas encontradas na ANS
   python ans_update.py --demo               # gera dados FICTICIOS para testar o painel
 
+Arquivos auxiliares: ibge_renda.json (renda do IBGE, atualizar 1x por ano em fevereiro).
+
 Atualize 1x por mes (a ANS publica os beneficiarios mensalmente).
+Linhas que comecam com "AVISO:" indicam um conjunto que nao foi lido; o painel
+continua funcionando e apenas tira aquele criterio do score.
 """
 import argparse
 import io
@@ -32,7 +37,7 @@ import pandas as pd
 BASE = "https://dadosabertos.ans.gov.br/FTP/PDA/"
 HERE = Path(__file__).resolve().parent
 CACHE = HERE / "cache"
-UA = {"User-Agent": "ramo-painel-ans/1.0"}
+UA = {"User-Agent": "ramo-painel-ans/1.1"}
 
 UFS = ["AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS", "MT",
        "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO"]
@@ -40,7 +45,7 @@ UFS = ["AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS", "
 # Nomes de coluna candidatos (a ANS ja mudou nomes no passado; ajuste aqui se preciso)
 COLS = {
     "uf": ["SG_UF"],
-    "cd_op": ["CD_OPERADORA", "REGISTRO_ANS", "REG_ANS", "CD_REGISTRO_ANS"],
+    "cd_op": ["CD_OPERADORA", "REGISTRO_ANS", "REG_ANS", "CD_REGISTRO_ANS", "REGISTRO_OPERADORA"],
     "nome": ["NM_RAZAO_SOCIAL", "RAZAO_SOCIAL"],
     "modalidade": ["MODALIDADE_OPERADORA"],
     "contr": ["DE_CONTRATACAO_PLANO", "CONTRATACAO_PLANO"],
@@ -55,7 +60,7 @@ COLS = {
 def http_get(url, tries=3):
     for i in range(tries):
         try:
-            with urlopen(Request(url, headers=UA), timeout=120) as r:
+            with urlopen(Request(url, headers=UA), timeout=180) as r:
                 return r.read()
         except Exception as e:  # noqa
             if i == tries - 1:
@@ -75,6 +80,23 @@ def find_col(cols, key):
         if cand in up:
             return up[cand]
     return None
+
+
+def norm_reg(v):
+    """Registro ANS sem aspas nem zeros a esquerda ('000477' -> '477')."""
+    s = str(v).strip().strip('"').strip()
+    s = s.split(".")[0] if re.fullmatch(r"\d+\.0+", s) else s
+    return s.lstrip("0") or "0"
+
+
+def to_float(v):
+    s = str(v).strip().strip('"')
+    if not s or s.upper() in ("ND", "NA", "NAN", "-"):
+        return None
+    try:
+        return float(s.replace(".", "").replace(",", ".") if "," in s else s)
+    except ValueError:
+        return None
 
 
 def month_shift(ym, k):
@@ -111,10 +133,30 @@ def read_csv_chunks(zbytes, **kw):
             continue
 
 
+def read_plain_csv(data):
+    """CSV solto (nao zipado), separador ';'. Tenta utf-8 (com/sem BOM) e latin1."""
+    for enc in ("utf-8-sig", "latin1"):
+        try:
+            df = pd.read_csv(io.BytesIO(data), sep=";", encoding=enc, dtype=str)
+            df.columns = [str(c).strip().strip('"').upper() for c in df.columns]
+            return df
+        except UnicodeDecodeError:
+            continue
+    raise RuntimeError("nao consegui decodificar o CSV")
+
+
 def cached_download(url, dest):
     dest.parent.mkdir(exist_ok=True)
     if dest.exists() and dest.stat().st_size > 0:
         return dest.read_bytes()
+    data = http_get(url)
+    dest.write_bytes(data)
+    return data
+
+
+def fresh_download(url, dest):
+    """Para arquivos pequenos que a ANS substitui no mesmo nome: sempre baixa de novo."""
+    dest.parent.mkdir(exist_ok=True)
     data = http_get(url)
     dest.write_bytes(data)
     return data
@@ -207,18 +249,21 @@ def build_benef(months, ufs):
 
 # ---------------------------------------------------------------- NIP e financeiro
 def build_nip():
-    """Conta reclamacoes (NIP) por operadora no ano mais recente disponivel."""
-    d = find_dataset_dir("nip") or find_dataset_dir("demandas")
+    """Conta reclamacoes (NIP) por operadora no ano mais recente disponivel.
+    Usado so como reserva quando a operadora nao tem IGR."""
+    d = find_dataset_dir("demandas_dos_consumidores_nip") or find_dataset_dir("nip")
     if not d:
-        print("AVISO: dataset NIP nao encontrado; reputacao fica fora do score.")
+        print("AVISO: dataset NIP nao encontrado.")
         return {}
     files = sorted(l for l in list_links(d) if l.lower().endswith((".zip", ".csv")))
     if not files:
+        print("AVISO: pasta NIP sem arquivos .zip/.csv:", d)
         return {}
     out, used = defaultdict(int), files[-1]
     data = cached_download(d + used, CACHE / f"nip_{used}")
     try:
-        for ch in read_csv_chunks(data) if used.endswith(".zip") else [pd.read_csv(io.BytesIO(data), sep=";", dtype=str)]:
+        chunks = read_csv_chunks(data) if used.endswith(".zip") else [read_plain_csv(data)]
+        for ch in chunks:
             col = find_col(ch.columns, "cd_op")
             if not col:
                 print("AVISO: coluna de operadora nao achada no NIP:", list(ch.columns))
@@ -240,10 +285,12 @@ def build_fin():
         return {}
     years = sorted(l.strip("/") for l in list_links(d) if re.fullmatch(r"\d{4}/?", l))
     if not years:
+        print("AVISO: pasta de contabeis sem subpastas AAAA:", d)
         return {}
     folder = d + years[-1] + "/"
     files = sorted(l for l in list_links(folder) if l.lower().endswith(".zip"))
     if not files:
+        print("AVISO: sem .zip em", folder)
         return {}
     data = cached_download(folder + files[-1], CACHE / f"fin_{years[-1]}_{files[-1]}")
     acc = defaultdict(dict)
@@ -268,12 +315,229 @@ def build_fin():
     return out
 
 
+# ---------------------------------------------------------------- indices oficiais
+def build_igr():
+    """IGR (metodologia 2023): reclamacoes NIP por 100 mil beneficiarios, mensal.
+    Guarda o IGR do ultimo mes e o IGR medio dos ultimos 12 meses (usado no score),
+    so para cobertura 'Assistencia medica'."""
+    try:
+        root = find_dataset_dir("igr")
+        if not root:
+            print("AVISO: pasta IGR nao encontrada; reclamacoes usam a contagem NIP.")
+            return {}, None
+        sub = sorted(l for l in list_links(root) if l.endswith("/") and "versao" in l.lower())
+        folder = root + sub[-1] if sub else root
+        csvs = sorted(l for l in list_links(folder) if l.lower().endswith(".csv") and "igr" in l.lower())
+        if not csvs:
+            print("AVISO: CSV do IGR nao encontrado em", folder)
+            return {}, None
+        df = read_plain_csv(fresh_download(folder + csvs[-1], CACHE / "igr.csv"))
+        need = {"REGISTRO_OPERADORA", "IGR", "QTD_RECLAMACOES", "QTD_BENEFICIARIOS", "COMPETENCIA"}
+        if not need <= set(df.columns):
+            print("AVISO: colunas inesperadas no IGR:", list(df.columns))
+            return {}, None
+        if "COBERTURA" in df.columns:
+            df = df[df["COBERTURA"].str.upper().str.contains("DICA", na=False)
+                    & ~df["COBERTURA"].str.upper().str.contains("ODONTO", na=False)]
+        df["_r"] = df["REGISTRO_OPERADORA"].map(norm_reg)
+        df["_comp"] = df["COMPETENCIA"].str.strip().str[:7]
+        comps = sorted(df["_comp"].dropna().unique())
+        last12 = comps[-12:]
+        df = df[df["_comp"].isin(last12)]
+        df["_rec"] = pd.to_numeric(df["QTD_RECLAMACOES"], errors="coerce").fillna(0)
+        df["_ben"] = pd.to_numeric(df["QTD_BENEFICIARIOS"], errors="coerce").fillna(0)
+        out = {}
+        for r, g in df.groupby("_r"):
+            ben = g["_ben"].sum()
+            g_last = g[g["_comp"] == g["_comp"].max()]
+            out[r] = {
+                "i12": round(float(g["_rec"].sum()) * 100_000 / float(ben), 2) if ben > 0 else None,
+                "i": to_float(g_last["IGR"].iloc[0]),
+                "rec": int(g["_rec"].sum()),
+                "porte": str(g_last["PORTE_OPERADORA"].iloc[0]) if "PORTE_OPERADORA" in g else "",
+            }
+        ref = f"{last12[0]} a {last12[-1]}" if last12 else None
+        print(f"IGR: {csvs[-1]} ({len(out)} operadoras, {ref})")
+        return out, ref
+    except Exception as e:  # noqa
+        print("AVISO: falha lendo IGR:", e)
+        return {}, None
+
+
+def build_idss():
+    """IDSS (0 a 1, 1 = melhor) mais recente disponivel por operadora, com as 4 dimensoes."""
+    try:
+        root = find_dataset_dir("idss")
+        if not root:
+            print("AVISO: pasta do IDSS nao encontrada; qualidade fica fora do score.")
+            return {}, None
+        csvs = [l for l in list_links(root) if l.lower().endswith(".csv")]
+        if not csvs:
+            print("AVISO: CSV do IDSS nao encontrado em", root)
+            return {}, None
+        # arquivo cujo nome termina no ano mais recente (ex.: ...-2016_2025.csv)
+        csvs.sort(key=lambda n: max([int(x) for x in re.findall(r"(20\d{2})", n)] or [0]))
+        df = read_plain_csv(fresh_download(root + csvs[-1], CACHE / "idss.csv"))
+        reg = find_col(df.columns, "cd_op")
+        pairs = sorted({m.group(1) for c in df.columns
+                        if (m := re.fullmatch(r"IDSS_(\d{4})_\d{4}", c))}, reverse=True)
+        if not reg or not pairs:
+            print("AVISO: colunas inesperadas no IDSS:", list(df.columns)[:12])
+            return {}, None
+        out = {}
+        for _, row in df.iterrows():
+            r = norm_reg(row[reg])
+            for ano in pairs:  # do mais recente para o mais antigo
+                col = next(c for c in df.columns if c.startswith(f"IDSS_{ano}_"))
+                v = to_float(row[col])
+                if v is None:
+                    continue
+                suf = col[len("IDSS_"):]
+                dims = {k.lower(): to_float(row.get(f"{k}_{suf}")) for k in ("IDQS", "IDGA", "IDSM", "IDGR")}
+                out[r] = {"v": v, "ano": int(ano), **{k: d for k, d in dims.items() if d is not None}}
+                break
+        anos = sorted({o["ano"] for o in out.values()})
+        ref = str(anos[-1]) if anos else None
+        print(f"IDSS: {csvs[-1]} ({len(out)} operadoras, programa mais recente {ref})")
+        return out, ref
+    except Exception as e:  # noqa
+        print("AVISO: falha lendo IDSS:", e)
+        return {}, None
+
+
+def build_prud():
+    """Classificacao Prudencial (RN 475): S1 a S4 conforme porte/receita. Informativo, nao entra no score."""
+    try:
+        root = find_dataset_dir("classificacao_prudencial")
+        if not root:
+            print("AVISO: pasta da Classificacao Prudencial nao encontrada.")
+            return {}, None
+        csvs = sorted(l for l in list_links(root) if l.lower().endswith(".csv"))
+        if not csvs:
+            print("AVISO: CSV da Classificacao Prudencial nao encontrado em", root)
+            return {}, None
+        df = read_plain_csv(fresh_download(root + csvs[-1], CACHE / "prud.csv"))
+        need = {"REGISTRO_OPERADORA", "DT_TRIMESTRE_REFERENCIA", "TP_CLASSIFICACAO"}
+        if not need <= set(df.columns):
+            print("AVISO: colunas inesperadas na Classificacao Prudencial:", list(df.columns))
+            return {}, None
+        df["_r"] = df["REGISTRO_OPERADORA"].map(norm_reg)
+        df = df.sort_values("DT_TRIMESTRE_REFERENCIA").drop_duplicates("_r", keep="last")
+        out = {r: str(s).strip().strip('"') for r, s in zip(df["_r"], df["TP_CLASSIFICACAO"])}
+        ref = df["DT_TRIMESTRE_REFERENCIA"].max()
+        print(f"Classificacao Prudencial: {csvs[-1]} ({len(out)} operadoras, ate {ref})")
+        return out, ref
+    except Exception as e:  # noqa
+        print("AVISO: falha lendo Classificacao Prudencial:", e)
+        return {}, None
+
+
+def rekey(d, ops, label):
+    """Converte as chaves de um dicionario para o mesmo codigo usado em ops e informa o cruzamento."""
+    if not d:
+        return {}
+    lut = {norm_reg(k): k for k in ops}
+    out = {lut[norm_reg(k)]: v for k, v in d.items() if norm_reg(k) in lut}
+    print(f"Cruzamento {label}: {len(out)} de {len(ops)} operadoras do painel")
+    if ops and len(out) < 0.2 * len(ops):
+        print(f"AVISO: poucas operadoras de {label} cruzaram com os beneficiarios. "
+              f"Exemplos de codigo: beneficiarios={list(ops)[:3]} {label}={list(d)[:3]}")
+    return out
+
+
+# ---------------------------------------------------------------- potencial por regiao
+UF_IBGE = {"11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP", "17": "TO",
+           "21": "MA", "22": "PI", "23": "CE", "24": "RN", "25": "PB", "26": "PE", "27": "AL",
+           "28": "SE", "29": "BA", "31": "MG", "32": "ES", "33": "RJ", "35": "SP", "41": "PR",
+           "42": "SC", "43": "RS", "50": "MS", "51": "MT", "52": "GO", "53": "DF"}
+SIDRA_POP = "https://apisidra.ibge.gov.br/values/t/6579/n3/all/v/9324/p/all"
+
+
+def build_pop_ibge():
+    """Populacao residente estimada por UF (IBGE, SIDRA tabela 6579). {ano: {UF: pessoas}}."""
+    try:
+        rows = json.loads(http_get(SIDRA_POP).decode("utf-8"))[1:]
+        out = defaultdict(dict)
+        for r in rows:
+            uf, v = UF_IBGE.get(str(r.get("D1C"))), str(r.get("V", ""))
+            if uf and v.isdigit():
+                out[str(r["D3C"])][uf] = int(v)
+        print(f"Populacao IBGE: anos {sorted(out)}")
+        return dict(out)
+    except Exception as e:  # noqa
+        print("AVISO: falha lendo populacao do IBGE (SIDRA 6579):", e)
+        return {}
+
+
+def build_cobertura():
+    """Beneficiarios por UF (assistencia medica e exclusivamente odontologico) do conjunto
+    'Taxa de cobertura' da ANS, todas as UFs, no periodo mais recente. A populacao vem do
+    proprio arquivo quando preenchida; se vier zerada, da estimativa do IBGE do mesmo ano."""
+    try:
+        root = find_dataset_dir("taxa_de_cobertura")
+        if not root:
+            print("AVISO: conjunto 'taxa de cobertura' nao encontrado; aba de potencial sem penetracao.")
+            return None
+        csvs = sorted(l for l in list_links(root) if l.lower().endswith(".csv"))
+        if not csvs:
+            print("AVISO: CSV da taxa de cobertura nao encontrado em", root)
+            return None
+        df = read_plain_csv(fresh_download(root + csvs[-1], CACHE / "cobertura.csv"))
+        need = {"PERIODO", "SG_UF", "BENEF_ASSISTENCIA_MEDICA", "BENEF_EXCLUS_ODONTOLOGICO", "POPULACAO"}
+        if not need <= set(df.columns):
+            print("AVISO: colunas inesperadas na taxa de cobertura:", list(df.columns))
+            return None
+        for c in ("BENEF_ASSISTENCIA_MEDICA", "BENEF_EXCLUS_ODONTOLOGICO", "POPULACAO"):
+            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+        df["PERIODO"] = df["PERIODO"].astype(str).str.strip()
+        df["SG_UF"] = df["SG_UF"].astype(str).str.strip().str.upper()
+        per = sorted(p for p in df["PERIODO"].unique() if p and p.lower() != "nan")[-1]
+        g = df[df["PERIODO"] == per].groupby("SG_UF")[
+            ["BENEF_ASSISTENCIA_MEDICA", "BENEF_EXCLUS_ODONTOLOGICO", "POPULACAO"]].sum()
+        pop_ibge = build_pop_ibge()
+        ano = re.match(r"\d{4}", per)
+        ibge_ano = ano.group(0) if ano and ano.group(0) in pop_ibge else None
+        ufs, faltas = {}, []
+        for uf in UFS:
+            if uf not in g.index:
+                faltas.append(uf)
+                continue
+            r = g.loc[uf]
+            pop, fonte = int(r["POPULACAO"]), "ANS"
+            if pop <= 0:
+                pop = pop_ibge.get(ibge_ano, {}).get(uf) if ibge_ano else None
+                fonte = f"IBGE {ibge_ano}" if pop else None
+            ufs[uf] = {"med": int(r["BENEF_ASSISTENCIA_MEDICA"]), "odo": int(r["BENEF_EXCLUS_ODONTOLOGICO"]),
+                       "pop": pop, "pop_fonte": fonte}
+        if faltas:
+            print("AVISO: UFs sem linhas na taxa de cobertura:", faltas)
+        sem_pop = [u for u, v in ufs.items() if not v["pop"]]
+        if sem_pop:
+            print(f"AVISO: sem populacao para {sem_pop} no periodo {per} (nem na ANS nem no IBGE do mesmo ano).")
+        print(f"Taxa de cobertura: {csvs[-1]} periodo {per} ({len(ufs)} UFs)")
+        return {"periodo": per, "arquivo": csvs[-1], "ufs": ufs}
+    except Exception as e:  # noqa
+        print("AVISO: falha lendo a taxa de cobertura:", e)
+        return None
+
+
+def load_renda():
+    f = HERE / "ibge_renda.json"
+    if not f.exists():
+        print("AVISO: ibge_renda.json nao encontrado; aba de potencial sem renda.")
+        return None
+    r = json.loads(f.read_text(encoding="utf-8"))
+    if datetime.now().year - int(r.get("ano", 0)) > 1:
+        print(f"AVISO: renda do IBGE e de {r.get('ano')}; atualize ibge_renda.json com a divulgacao mais recente.")
+    return r
+
+
 # ---------------------------------------------------------------- demo
 def build_demo(months):
     random.seed(7)
     latest = "202609"
     wanted = [month_shift(latest, -i) for i in range(months)][::-1]
-    ops, series, nip, fin = {}, [], {}, {}
+    ops, series, nip, fin, igr, idss, prud = {}, [], {}, {}, {}, {}, {}
     mods = ["Medicina de grupo", "Cooperativa médica", "Seguradora especializada em saúde", "Autogestão"]
     for i in range(1, 41):
         cd = str(300000 + i)
@@ -282,6 +546,12 @@ def build_demo(months):
         nip[cd] = int(size / 10_000 * random.uniform(1, 25))
         fin[cd] = {"pl": random.choice([1, 1, 1, 1, -1]) * random.uniform(1e6, 3e8),
                    "sin": random.uniform(0.6, 0.95)}
+        if random.random() < 0.9:
+            igr[cd] = {"i12": round(random.uniform(2, 120), 2), "i": round(random.uniform(1, 150), 2),
+                       "rec": random.randint(5, 2000), "porte": "Grande" if size > 100_000 else "Médio"}
+        if random.random() < 0.85:
+            idss[cd] = {"v": round(random.uniform(0.3, 0.98), 4), "ano": 2025}
+        prud[cd] = "S1" if size > 600_000 else "S2" if size > 150_000 else "S3"
         for uf in random.sample(UFS, random.randint(2, 12)):
             share = random.random()
             for mi in range(months):
@@ -294,7 +564,16 @@ def build_demo(months):
         for k in range(8):
             for cd in random.sample(list(ops), 6):
                 muni.append([uf, f"{uf}{k:03d}", f"Município Demo {uf}-{k + 1}", cd, random.randint(200, 40_000)])
-    return wanted, series, ops, muni, nip, fin
+    refs = {"igr": "2025-10 a 2026-09", "idss": "2025", "prud": "2026-06-30"}
+    cob = {"periodo": "2026", "arquivo": "demo", "ufs": {}}
+    for uf in UFS:
+        if uf == "AP":  # simula UF sem populacao, para testar o aviso de dado faltante
+            cob["ufs"][uf] = {"med": 90_000, "odo": 40_000, "pop": None, "pop_fonte": None}
+            continue
+        pop = random.randint(600_000, 46_000_000)
+        cob["ufs"][uf] = {"med": int(pop * random.uniform(0.05, 0.38)), "odo": int(pop * random.uniform(0.03, 0.2)),
+                          "pop": pop, "pop_fonte": "IBGE 2026"}
+    return wanted, series, ops, muni, nip, fin, igr, idss, prud, refs, cob
 
 
 # ---------------------------------------------------------------- main
@@ -312,11 +591,18 @@ def main():
         return
 
     if a.demo:
-        wanted, series, ops, muni, nip, fin = build_demo(a.months)
+        wanted, series, ops, muni, nip, fin, igr, idss, prud, refs, cob = build_demo(a.months)
     else:
         ufs = [u.strip().upper() for u in a.ufs.split(",") if u.strip()]
         wanted, series, ops, muni = build_benef(a.months, ufs)
         nip, fin = build_nip(), build_fin()
+        igr, r_igr = build_igr()
+        idss, r_idss = build_idss()
+        prud, r_prud = build_prud()
+        refs = {"igr": r_igr, "idss": r_idss, "prud": r_prud}
+        cob = build_cobertura()
+        nip, fin = rekey(nip, ops, "NIP"), rekey(fin, ops, "contabeis")
+        igr, idss, prud = rekey(igr, ops, "IGR"), rekey(idss, ops, "IDSS"), rekey(prud, ops, "Prudencial")
 
     payload = {
         "gerado_em": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -327,6 +613,12 @@ def main():
         "muni": muni,
         "nip": nip,
         "fin": fin,
+        "igr": igr,
+        "idss": idss,
+        "prud": prud,
+        "refs": refs,
+        "cob": cob,
+        "renda": load_renda(),
     }
     txt = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     out = HERE / "data.js"
