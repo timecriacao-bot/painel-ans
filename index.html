@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel ANS · Ramo Hub</title>
+<style>
+  :root{
+    --bg:#f7f5fb; --card:#ffffff; --ink:#1d1530; --mut:#6b6480; --line:#e5e0f0;
+    --p:#4a1f8c; --p2:#7c4dcc; --p3:#e9e0fa; --ok:#1f8a5b; --warn:#b7791f; --bad:#b3261e;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#14101f; --card:#1d1730; --ink:#f1ecfb; --mut:#a79fc0; --line:#352c52;
+           --p:#b79cf0; --p2:#9a78e6; --p3:#2b2147; --ok:#4cc48d; --warn:#e0b04a; --bad:#f08a82; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  header{padding:18px 20px 8px}
+  h1{margin:0;font-size:20px}
+  h1 b{color:var(--p)}
+  .sub{color:var(--mut);font-size:12px;margin-top:2px}
+  .demo{background:#fff3cd;color:#664d03;padding:8px 20px;font-weight:600;font-size:13px}
+  main{padding:0 20px 40px;max-width:1200px;margin:0 auto}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:12px}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+  label{display:flex;flex-direction:column;font-size:11px;color:var(--mut);gap:3px}
+  select,input[type=text],input[type=number]{padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:13px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{padding:6px 11px;border:1px solid var(--line);border-radius:999px;background:var(--card);cursor:pointer;font-size:12px;color:var(--ink)}
+  .chip.on{background:var(--p);color:#fff;border-color:var(--p)}
+  @media (prefers-color-scheme: dark){ .chip.on{color:#14101f} }
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .kpi small{color:var(--mut);display:block;font-size:11px}
+  .kpi strong{font-size:22px}
+  .tabs{display:flex;gap:6px;margin-top:14px}
+  .tab{padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);cursor:pointer;color:var(--ink)}
+  .tab.on{background:var(--p3);border-color:var(--p);color:var(--p);font-weight:600}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+  th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}
+  th{font-size:11px;color:var(--mut);font-weight:600;position:sticky;top:0;background:var(--card)}
+  .scroll{overflow:auto;max-height:560px}
+  .bar{display:inline-block;height:8px;border-radius:4px;background:var(--p2);vertical-align:middle;margin-right:6px}
+  .tag{padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
+  .tag.ok{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+  .tag.mid{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+  .tag.bad{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}
+  .pos{color:var(--ok)} .neg{color:var(--bad)}
+  .weights{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:10px}
+  .weights input{width:100%}
+  .note{color:var(--mut);font-size:12px;margin-top:8px}
+  svg text{fill:var(--mut);font-size:10px}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div id="demo" class="demo hidden">DADOS DE DEMONSTRAÇÃO (fictícios). Rode ans_update.py sem --demo para carregar os dados reais da ANS.</div>
+<header>
+  <h1>Painel ANS · <b>Ramo Hub</b></h1>
+  <div class="sub" id="ref"></div>
+</header>
+<main>
+  <div class="card">
+    <div class="row">
+      <div>
+        <div class="sub" style="margin-bottom:4px">Região</div>
+        <div class="chips" id="regioes"></div>
+      </div>
+      <label>UF <select id="uf"></select></label>
+      <label>Tipo de contratação <select id="contr"></select></label>
+      <label>Mín. de beneficiários <input type="number" id="min" value="5000" min="0" step="1000"></label>
+    </div>
+    <div class="weights">
+      <label>Crescimento: <span id="w1v"></span><input type="range" id="w1" min="0" max="100" value="35"></label>
+      <label>Reputação (reclamações): <span id="w2v"></span><input type="range" id="w2" min="0" max="100" value="25"></label>
+      <label>Solidez financeira: <span id="w3v"></span><input type="range" id="w3" min="0" max="100" value="25"></label>
+      <label>Porte (volume): <span id="w4v"></span><input type="range" id="w4" min="0" max="100" value="15"></label>
+    </div>
+    <div class="note" id="avail"></div>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="tabs">
+    <div class="tab on" data-t="rank">Ranking de operadoras</div>
+    <div class="tab" data-t="mercado">Mercado</div>
+    <div class="tab" data-t="mun">Municípios</div>
+  </div>
+
+  <div id="t-rank" class="card">
+    <div class="scroll"><table id="rank"></table></div>
+    <div class="note">Score 0–100 = média ponderada (pesos acima) de: crescimento de beneficiários em 12 meses, reclamações NIP por 10 mil beneficiários (menos é melhor), solidez (patrimônio líquido positivo e sinistralidade próxima de 70–80%) e porte. Indicador de apoio, não recomendação comercial: confirme comissões e regras com cada operadora.</div>
+  </div>
+
+  <div id="t-mercado" class="card hidden">
+    <div class="grid2">
+      <div><div class="sub">Beneficiários ativos por mês (filtro atual)</div><svg id="line" viewBox="0 0 520 220" width="100%"></svg></div>
+      <div><div class="sub">Participação das 10 maiores operadoras</div><svg id="bars" viewBox="0 0 520 260" width="100%"></svg></div>
+    </div>
+  </div>
+
+  <div id="t-mun" class="card hidden">
+    <div class="row"><label>Buscar município <input type="text" id="q" placeholder="Digite o nome"></label></div>
+    <div class="scroll" style="margin-top:10px"><table id="muntb"></table></div>
+    <div class="note">Mês mais recente, apenas das operadoras com mais beneficiários em cada município (as 8 maiores).</div>
+  </div>
+</main>
+<script src="data.js"></script>
+<script>
+const D = window.ANS_DATA;
+const REG = {
+  "Centro-Oeste":["DF","GO","MS","MT"], "Sudeste":["ES","MG","RJ","SP"],
+  "Sul":["PR","RS","SC"], "Nordeste":["AL","BA","CE","MA","PB","PE","PI","RN","SE"], "Norte":["AC","AM","AP","PA","RO","RR","TO"]
+};
+const CONTRS = ["Individual/familiar","Coletivo empresarial","Coletivo por adesão","Outros"];
+const $ = id => document.getElementById(id);
+const fmt = n => Math.round(n).toLocaleString("pt-BR");
+const pct = n => (n>=0?"+":"") + (n*100).toFixed(1).replace(".",",") + "%";
+const mesLabel = m => m.slice(4)+"/"+m.slice(0,4);
+
+let regSel = new Set(["Centro-Oeste","Sudeste"]);
+
+if (D.demo) $("demo").classList.remove("hidden");
+$("ref").textContent = `Competência ${mesLabel(D.meses[D.meses.length-1])} · gerado em ${D.gerado_em} · fonte: ANS (dados abertos)`;
+
+// --- filtros
+function buildChips(){
+  const el = $("regioes"); el.innerHTML = "";
+  const mk = (txt, on, fn) => { const b=document.createElement("span"); b.className="chip"+(on?" on":""); b.textContent=txt; b.onclick=fn; el.appendChild(b); };
+  mk("Foco Ramo (CO+SE)", regSel.size===2 && regSel.has("Centro-Oeste") && regSel.has("Sudeste"), ()=>{regSel=new Set(["Centro-Oeste","Sudeste"]);$("uf").value="";refresh()});
+  mk("Brasil", regSel.size===5, ()=>{regSel=new Set(Object.keys(REG));$("uf").value="";refresh()});
+  Object.keys(REG).forEach(r => mk(r, regSel.has(r) && regSel.size===1, ()=>{regSel=new Set([r]);$("uf").value="";refresh()}));
+}
+const ufsAll = [...new Set(D.series.map(r=>r[1]))].sort();
+$("uf").innerHTML = '<option value="">Todas da região</option>' + ufsAll.map(u=>`<option>${u}</option>`).join("");
+$("contr").innerHTML = '<option value="">Todas</option><option value="coletivo">Todos os coletivos</option>' + CONTRS.map((c,i)=>`<option value="${i}">${c}</option>`).join("");
+["uf","contr","min","w1","w2","w3","w4"].forEach(id => $(id).addEventListener("input", refresh));
+$("q").addEventListener("input", renderMun);
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===t));
+  ["rank","mercado","mun"].forEach(k=>$("t-"+k).classList.toggle("hidden",k!==t.dataset.t));
+});
+
+function selUFs(){
+  const u = $("uf").value;
+  if (u) return new Set([u]);
+  const s = new Set(); regSel.forEach(r => REG[r].forEach(x=>s.add(x))); return s;
+}
+function contrOk(ci){
+  const v = $("contr").value;
+  if (v==="") return true;
+  if (v==="coletivo") return ci===1 || ci===2;
+  return String(ci)===v;
+}
+
+// --- cálculo
+const last = D.meses.length-1, base = 0;
+let cur = {};
+
+function pctRank(vals, v){ // 0..1, empate pela média
+  let lo=0, eq=0; for (const x of vals){ if (x<v) lo++; else if (x===v) eq++; }
+  return vals.length>1 ? (lo + (eq-1)/2) / (vals.length-1) : 0.5;
+}
+
+function compute(){
+  const ufs = selUFs(), minB = +$("min").value || 0;
+  const byOp = {}, byMonth = new Array(D.meses.length).fill(0);
+  for (const [mi,uf,cd,ci,q] of D.series){
+    if (!ufs.has(uf) || !contrOk(ci)) continue;
+    byMonth[mi] += q;
+    const o = byOp[cd] || (byOp[cd] = {cd, now:0, base:0});
+    if (mi===last) o.now += q;
+    if (mi===base) o.base += q;
+  }
+  const hasNip = Object.keys(D.nip||{}).length>0, hasFin = Object.keys(D.fin||{}).length>0;
+  let list = Object.values(byOp).filter(o => o.now>=minB);
+  list.forEach(o => {
+    const info = D.ops[o.cd] || {n:o.cd,m:""};
+    o.nome = info.n; o.mod = info.m;
+    o.cresc = o.base>0 ? o.now/o.base-1 : null;
+    const n = D.nip && D.nip[o.cd];
+    o.nip = (n!=null && o.now>0) ? n / (o.now/10000) : null;
+    const f = D.fin && D.fin[o.cd];
+    o.pl = f ? f.pl : null; o.sin = f ? f.sin : null;
+  });
+  const W = {c:+$("w1").value, n:+$("w2").value, f:+$("w3").value, p:+$("w4").value};
+  $("w1v").textContent=W.c; $("w2v").textContent=W.n; $("w3v").textContent=W.f; $("w4v").textContent=W.p;
+  const cv = list.map(o=>o.cresc).filter(x=>x!=null);
+  const nv = list.map(o=>o.nip).filter(x=>x!=null);
+  const pv = list.map(o=>Math.log(o.now+1));
+  list.forEach(o => {
+    const parts = [];
+    if (o.cresc!=null) parts.push([W.c, pctRank(cv,o.cresc)]);
+    if (o.nip!=null)   parts.push([W.n, 1-pctRank(nv,o.nip)]);
+    if (o.sin!=null || o.pl!=null){
+      let s = 0.5;
+      if (o.sin!=null) s = Math.max(0, 1 - Math.abs(o.sin-0.75)/0.25);
+      if (o.pl!=null && o.pl<=0) s = 0;
+      parts.push([W.f, s]);
+    }
+    parts.push([W.p, pctRank(pv, Math.log(o.now+1))]);
+    const tw = parts.reduce((a,p)=>a+p[0],0);
+    o.score = tw>0 ? 100*parts.reduce((a,p)=>a+p[0]*p[1],0)/tw : 0;
+    // alertas
+    o.alerta = (o.pl!=null && o.pl<=0) || (o.cresc!=null && o.cresc<-0.05);
+  });
+  if (nv.length){ const cut = [...nv].sort((a,b)=>a-b)[Math.floor(nv.length*0.9)];
+    list.forEach(o=>{ if (o.nip!=null && o.nip>=cut) o.alerta = true; }); }
+  list.sort((a,b)=>b.score-a.score);
+  cur = {list, byMonth, ufs, hasNip, hasFin};
+}
+
+// --- render
+function renderKpis(){
+  const tot = cur.byMonth[last], b = cur.byMonth[base];
+  const k = [
+    ["Beneficiários (médico-hospitalar)", fmt(tot)],
+    ["Variação no período", b>0 ? pct(tot/b-1) : "—"],
+    ["Operadoras no filtro", fmt(cur.list.length)],
+    ["Líder de mercado", cur.list.length ? (cur.list.slice().sort((a,b)=>b.now-a.now)[0].nome.slice(0,26)) : "—"],
+  ];
+  $("kpis").innerHTML = k.map(([a,b])=>`<div class="kpi"><small>${a}</small><strong>${b}</strong></div>`).join("");
+  const miss = [];
+  if (!cur.hasNip) miss.push("reclamações (NIP)");
+  if (!cur.hasFin) miss.push("dados financeiros");
+  $("avail").textContent = miss.length ? "Sem dados de " + miss.join(" e ") + ": esses critérios ficam fora do score (o peso é redistribuído)." : "";
+}
+
+function renderRank(){
+  const maxN = Math.max(1, ...cur.list.map(o=>o.now));
+  const rows = cur.list.slice(0,150).map((o,i)=>{
+    const tag = o.alerta ? '<span class="tag bad">Atenção</span>' : (o.score>=65 ? '<span class="tag ok">Indicada</span>' : '<span class="tag mid">Neutra</span>');
+    const c = o.cresc==null ? "—" : `<span class="${o.cresc>=0?"pos":"neg"}">${pct(o.cresc)}</span>`;
+    return `<tr><td>${i+1}</td><td title="${o.nome}">${o.nome.slice(0,38)}</td><td>${o.mod.slice(0,22)}</td>
+      <td><span class="bar" style="width:${Math.max(2,o.now/maxN*60)}px"></span>${fmt(o.now)}</td>
+      <td>${c}</td><td>${o.nip==null?"—":o.nip.toFixed(1).replace(".",",")}</td>
+      <td>${o.sin==null?"—":(o.sin*100).toFixed(0)+"%"}</td>
+      <td><b>${o.score.toFixed(0)}</b></td><td>${tag}</td></tr>`;
+  }).join("");
+  $("rank").innerHTML = `<thead><tr><th>#</th><th>Operadora</th><th>Modalidade</th><th>Beneficiários</th><th>Cresc.</th><th>NIP/10 mil</th><th>Sinistr.</th><th>Score</th><th>Selo</th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+function renderLine(){
+  const v = cur.byMonth, W=520, H=220, pl=46, pr=10, pt=12, pb=26;
+  const max = Math.max(...v,1), min = Math.min(...v)*0.98;
+  const x = i => pl + i*(W-pl-pr)/Math.max(1,v.length-1);
+  const y = n => pt + (H-pt-pb) * (1 - (n-min)/Math.max(1,max-min));
+  const path = v.map((n,i)=>`${i?"L":"M"}${x(i).toFixed(1)},${y(n).toFixed(1)}`).join(" ");
+  let g = "";
+  for (let k=0;k<=3;k++){ const n = min+(max-min)*k/3; g += `<line x1="${pl}" x2="${W-pr}" y1="${y(n)}" y2="${y(n)}" stroke="var(--line)"/><text x="${pl-4}" y="${y(n)+3}" text-anchor="end">${(n/1e6).toFixed(2)}M</text>`; }
+  const step = Math.ceil(v.length/6);
+  D.meses.forEach((m,i)=>{ if(i%step===0||i===v.length-1) g += `<text x="${x(i)}" y="${H-8}" text-anchor="middle">${mesLabel(m)}</text>`; });
+  $("line").innerHTML = g + `<path d="${path}" fill="none" stroke="var(--p2)" stroke-width="2.5"/>` + v.map((n,i)=>`<circle cx="${x(i)}" cy="${y(n)}" r="2.5" fill="var(--p)"/>`).join("");
+}
+
+function renderBars(){
+  const top = cur.list.slice().sort((a,b)=>b.now-a.now).slice(0,10), tot = cur.byMonth[last]||1;
+  const max = Math.max(1,...top.map(o=>o.now));
+  $("bars").innerHTML = top.map((o,i)=>{
+    const w = o.now/max*280, yy = 8+i*24;
+    return `<text x="0" y="${yy+11}">${o.nome.slice(0,26)}</text><rect x="170" y="${yy}" width="${w}" height="14" rx="3" fill="var(--p2)"/><text x="${176+w}" y="${yy+11}">${(o.now/tot*100).toFixed(1).replace(".",",")}%</text>`;
+  }).join("");
+}
+
+function renderMun(){
+  const q = $("q").value.trim().toLowerCase(), ufs = cur.ufs;
+  const by = {};
+  for (const [uf,cm,nm,cd,qt] of D.muni){
+    if (!ufs.has(uf)) continue;
+    if (q && !nm.toLowerCase().includes(q)) continue;
+    const m = by[cm] || (by[cm] = {uf, nm, tot:0, ops:[]});
+    m.tot += qt; m.ops.push([cd,qt]);
+  }
+  const rows = Object.values(by).sort((a,b)=>b.tot-a.tot).slice(0,200).map(m=>{
+    m.ops.sort((a,b)=>b[1]-a[1]);
+    const t = m.ops.slice(0,3).map(([cd,qt])=>`${((D.ops[cd]||{}).n||cd).slice(0,22)} (${(qt/m.tot*100).toFixed(0)}%)`).join(" · ");
+    return `<tr><td>${m.nm}</td><td>${m.uf}</td><td>${fmt(m.tot)}</td><td style="text-align:left">${t}</td></tr>`;
+  }).join("");
+  $("muntb").innerHTML = `<thead><tr><th>Município</th><th>UF</th><th>Beneficiários</th><th style="text-align:left">Maiores operadoras</th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+function refresh(){ buildChips(); compute(); renderKpis(); renderRank(); renderLine(); renderBars(); renderMun(); }
+refresh();
+</script>
+</body>
+</html>
