@@ -149,11 +149,30 @@ def process_benef_zip(zbytes):
     return agg, mun
 
 
+def find_benef_root():
+    """Procura, entre todas as pastas com 'benefici' no nome, a que tem subpastas AAAAMM."""
+    top = list_links(BASE)
+    cands = [BASE + l for l in top if "benefici" in l.lower()]
+    seen = []
+    for c in cands:
+        try:
+            links = list_links(c)
+        except Exception as e:  # noqa
+            seen.append((c, f"erro: {e}"))
+            continue
+        months = [l.strip("/") for l in links if re.fullmatch(r"\d{6}/?", l)]
+        if months:
+            return c, sorted(months)
+        seen.append((c, links[:20]))
+    print("=== DIAGNOSTICO: pasta de beneficiarios nao encontrada ===")
+    print("Raiz (primeiros 80 itens):", top[:80])
+    for c, info in seen:
+        print("Candidata:", c, "->", info)
+    sys.exit("Pasta de beneficiarios com subpastas AAAAMM nao encontrada. Envie o diagnostico acima.")
+
+
 def build_benef(months, ufs):
-    root = find_dataset_dir("beneficiarios")
-    if not root:
-        sys.exit("Pasta de beneficiarios nao encontrada. Rode com --inspect.")
-    avail = sorted(l.strip("/") for l in list_links(root) if re.fullmatch(r"\d{6}/?", l))
+    root, avail = find_benef_root()
     latest = avail[-1]
     wanted = [m for m in (month_shift(latest, -i) for i in range(months)) if m in avail][::-1]
     print(f"Competencias: {wanted[0]} a {wanted[-1]}")
