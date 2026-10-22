@@ -1,0 +1,49 @@
+name: Atualizar painel ANS
+
+on:
+  schedule:
+    - cron: "0 9 5 * *"   # dia 5 de cada mês, 06h no horário de Brasília
+  workflow_dispatch:       # permite rodar na mão pelo botão "Run workflow"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas
+      - uses: actions/cache@v4
+        with:
+          path: cache
+          key: ans-cache-${{ github.run_id }}
+          restore-keys: ans-cache-
+      # Foco Ramo. Para o Brasil inteiro, apague "--ufs ..." da linha abaixo.
+      - run: python ans_update.py --ufs GO,MT,MS,DF,SP,RJ,MG,ES
+      - run: |
+          mkdir site
+          cp index.html data.js site/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.d.outputs.page_url }}
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4
