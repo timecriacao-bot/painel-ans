@@ -508,17 +508,24 @@ def build_cobertura():
             ["BENEF_ASSISTENCIA_MEDICA", "BENEF_EXCLUS_ODONTOLOGICO", "POPULACAO"]].sum()
         pop_ibge = build_pop_ibge()
         ano = re.match(r"\d{4}", per)
-        ibge_ano = ano.group(0) if ano and ano.group(0) in pop_ibge else None
+        anos_ibge = sorted(pop_ibge)
+        # mesmo ano do periodo; se o IBGE ainda nao publicou, o ano mais recente publicado (informado na fonte)
+        ibge_ano = (ano.group(0) if ano and ano.group(0) in pop_ibge
+                    else ([a for a in anos_ibge if not ano or a <= ano.group(0)] or [None])[-1])
         ufs, faltas = {}, []
         for uf in UFS:
             if uf not in g.index:
                 faltas.append(uf)
                 continue
             r = g.loc[uf]
-            pop, fonte = int(r["POPULACAO"]), "ANS"
-            if pop <= 0:
-                pop = pop_ibge.get(ibge_ano, {}).get(uf) if ibge_ano else None
-                fonte = f"IBGE {ibge_ano}" if pop else None
+            # IBGE e a fonte principal: a coluna POPULACAO da ANS pode vir zerada ou so parcialmente preenchida
+            pop_ans = int(r["POPULACAO"])
+            pop = pop_ibge.get(ibge_ano, {}).get(uf) if ibge_ano else None
+            fonte = f"IBGE {ibge_ano}" if pop else None
+            if not pop and pop_ans > 0:
+                pop, fonte = pop_ans, "ANS"
+            if pop and r["BENEF_ASSISTENCIA_MEDICA"] > pop:
+                print(f"AVISO: {uf} com mais beneficiarios ({int(r['BENEF_ASSISTENCIA_MEDICA'])}) que populacao ({pop}, {fonte}).")
             ufs[uf] = {"med": int(r["BENEF_ASSISTENCIA_MEDICA"]), "odo": int(r["BENEF_EXCLUS_ODONTOLOGICO"]),
                        "pop": pop, "pop_fonte": fonte}
         if faltas:

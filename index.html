@@ -117,6 +117,23 @@
   .leg{display:flex;flex-wrap:wrap;gap:14px;font-size:11px;color:var(--mut);margin-top:6px}
   .leg i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:0}
   .foco{font-size:9.5px;color:var(--o);font-weight:700;margin-left:5px;text-transform:uppercase;letter-spacing:.5px}
+  .subtabs{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--line);border-radius:12px;background:rgba(10,7,20,.55);margin-bottom:14px}
+  .subtab{padding:7px 14px;border-radius:9px;cursor:pointer;color:var(--mut);font-size:12.5px;font-weight:500;user-select:none}
+  .subtab:hover{color:var(--ink)}
+  .subtab.on{background:var(--glass2);color:var(--ink);font-weight:600;box-shadow:inset 0 0 0 1px rgba(185,162,255,.45)}
+  .opsearch{position:relative;display:flex;flex-direction:column;gap:5px;flex:1 1 360px;max-width:560px}
+  .opsearch input{width:100%}
+  .opres{position:absolute;top:100%;left:0;right:0;margin-top:4px;z-index:20;max-height:320px;overflow:auto;background:#17112b;border:1px solid var(--line2);border-radius:12px;box-shadow:0 20px 40px -10px rgba(0,0,0,.8)}
+  .opt{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:1px}
+  .opt:hover{background:rgba(139,92,246,.14)}
+  .opt b{font-size:13px;font-weight:600} .opt span{font-size:11px;color:var(--mut)}
+  .opt.none{cursor:default;color:var(--mut)}
+  .chip .x{opacity:.8;margin-left:4px}
+  .empty{margin-top:16px;padding:28px;border:1px dashed var(--line2);border-radius:14px;text-align:center;color:var(--mut)}
+  .opgrid{display:grid;grid-template-columns:minmax(260px,380px) minmax(0,1fr);gap:18px;align-items:start}
+  .opgrid>div{min-width:0}
+  @media (max-width:820px){ .opgrid{grid-template-columns:minmax(0,1fr)} }
+  .tile text{pointer-events:none}
   h3{font-family:"Sora",sans-serif;font-size:14px;font-weight:600;margin:24px 0 10px;display:flex;align-items:center;gap:8px}
   h3::before{content:"";width:4px;height:16px;border-radius:4px;background:var(--grad)}
   @media (max-width:640px){
@@ -188,10 +205,32 @@
   </div>
 
   <div id="t-pot" class="card hidden">
+    <div class="subtabs">
+      <div class="subtab on" data-v="geral">Visão geral</div>
+      <div class="subtab" data-v="op">Por operadora</div>
+    </div>
     <div class="pot-head">
       <div class="src" id="pot-src"></div>
-      <label>Tipo de plano <select id="pot-tipo"><option value="med">Assistência médica</option><option value="odo">Exclusivamente odontológico</option></select></label>
+      <label id="pot-tipo-wrap">Tipo de plano <select id="pot-tipo"><option value="med">Assistência médica</option><option value="odo">Exclusivamente odontológico</option></select></label>
     </div>
+
+    <div id="pot-op" class="hidden">
+      <div class="row" style="margin-top:14px;align-items:flex-start">
+        <div class="opsearch">
+          <label for="op-q">Operadoras (até 10)</label>
+          <input type="text" id="op-q" placeholder="Busque pelo nome ou registro ANS" autocomplete="off">
+          <div id="op-res" class="opres hidden"></div>
+        </div>
+        <label>Tipo de contratação <select id="op-contr">
+          <option value="">Todos</option><option value="coletivo">Todos os coletivos</option>
+          <option value="0">Individual/familiar</option><option value="1">Coletivo empresarial</option><option value="2">Coletivo por adesão</option>
+        </select></label>
+      </div>
+      <div class="chips" id="op-chips" style="margin-top:10px"></div>
+      <div id="op-body"></div>
+    </div>
+
+    <div id="pot-geral">
     <div class="kpis" id="pot-kpis"></div>
     <div id="pot-miss"></div>
 
@@ -208,6 +247,7 @@
     <h3>Ranking dos estados por penetração</h3>
     <div class="scroll"><table id="pot-uf"></table></div>
     <div class="note" id="pot-note"></div>
+    </div>
   </div>
 </main>
 <script src="data.js"></script>
@@ -225,7 +265,7 @@ const dec = (n,d) => n.toFixed(d).replace(".",",");
 const mesLabel = m => m.slice(4)+"/"+m.slice(0,4);
 const IGR = D.igr||{}, IDSS = D.idss||{}, PRUD = D.prud||{}, REFS = D.refs||{};
 
-let regSel = new Set(["Centro-Oeste","Sudeste"]);
+let regSel = new Set(Object.keys(REG));
 
 if (D.demo) $("demo").classList.remove("hidden");
 {
@@ -240,7 +280,6 @@ if (D.demo) $("demo").classList.remove("hidden");
 function buildChips(){
   const el = $("regioes"); el.innerHTML = "";
   const mk = (txt, on, fn) => { const b=document.createElement("span"); b.className="chip"+(on?" on":""); b.textContent=txt; b.onclick=fn; el.appendChild(b); };
-  mk("Foco Ramo (CO+SE)", regSel.size===2 && regSel.has("Centro-Oeste") && regSel.has("Sudeste"), ()=>{regSel=new Set(["Centro-Oeste","Sudeste"]);$("uf").value="";refresh()});
   mk("Brasil", regSel.size===5, ()=>{regSel=new Set(Object.keys(REG));$("uf").value="";refresh()});
   Object.keys(REG).forEach(r => mk(r, regSel.has(r) && regSel.size===1, ()=>{regSel=new Set([r]);$("uf").value="";refresh()}));
 }
@@ -425,7 +464,7 @@ function renderMun(){
 const UFNOME = {AC:"Acre",AL:"Alagoas",AM:"Amazonas",AP:"Amapá",BA:"Bahia",CE:"Ceará",DF:"Distrito Federal",ES:"Espírito Santo",GO:"Goiás",MA:"Maranhão",MG:"Minas Gerais",MS:"Mato Grosso do Sul",MT:"Mato Grosso",PA:"Pará",PB:"Paraíba",PE:"Pernambuco",PI:"Piauí",PR:"Paraná",RJ:"Rio de Janeiro",RN:"Rio Grande do Norte",RO:"Rondônia",RR:"Roraima",RS:"Rio Grande do Sul",SC:"Santa Catarina",SE:"Sergipe",SP:"São Paulo",TO:"Tocantins"};
 const UF2REG = {}; Object.entries(REG).forEach(([r,us])=>us.forEach(u=>UF2REG[u]=r));
 const REGCOR = {"Norte":"#2dd4bf","Nordeste":"#f5a742","Centro-Oeste":"#a78bfa","Sudeste":"#f472b6","Sul":"#60a5fa"};
-const FOCO = new Set([...REG["Centro-Oeste"], ...REG["Sudeste"]]);
+const FOCO = new Set(); // destaque de estados desativado
 const QUAD = {
   cresc:  {t:"Renda alta, cobertura baixa", c:"var(--ok)",  d:"Renda acima da média nacional e penetração abaixo dela. Maior espaço para novas vendas: público com capacidade de pagamento ainda sem plano."},
   maduro: {t:"Mercado maduro",              c:"var(--p2)",  d:"Renda e penetração acima da média. Muita gente já tem plano: campanhas de troca de operadora, upgrade e coletivos empresariais/PME."},
@@ -442,16 +481,25 @@ function quadOf(u, brPen, brRenda){
   return r ? (p ? "maduro" : "cresc") : (p ? "acima" : "entrada");
 }
 
-function renderPot(){
-  const C = D.cob, R = D.renda, tipo = $("pot-tipo").value;
-  const tipoNome = tipo==="med" ? "assistência médica" : "exclusivamente odontológico";
+function potBase(tipo){
+  const C = D.cob, R = D.renda;
   const ufs = Object.keys(UFNOME).map(uf => {
     const c = C && C.ufs ? C.ufs[uf] : null;
     const ben = c ? c[tipo] : null, pop = c && c.pop ? c.pop : null;
     const renda = R && R.ufs && R.ufs[uf]!=null ? R.ufs[uf] : null;
-    return {uf, nome:UFNOME[uf], reg:UF2REG[uf], ben, pop, renda, popFonte: c ? c.pop_fonte : null,
-            pen: (ben!=null && pop) ? ben/pop : null, sem: (ben!=null && pop) ? Math.max(0,pop-ben) : null};
+    const pen = (ben!=null && pop) ? ben/pop : null;
+    const invalida = pen!=null && pen>1;   // mais beneficiários que habitantes: dado inconsistente, não usado
+    return {uf, nome:UFNOME[uf], reg:UF2REG[uf], ben, pop: invalida?null:pop, renda, popFonte: c ? c.pop_fonte : null, invalida,
+            pen: invalida ? null : pen, sem: (pen!=null && !invalida) ? Math.max(0,pop-ben) : null};
   });
+  const ok = ufs.filter(u=>u.pen!=null), bPop = sumBy(ok,"pop");
+  return {ufs, ok, brPen: bPop ? sumBy(ok,"ben")/bPop : null, brRenda: R ? R.brasil : null};
+}
+
+function renderPot(){
+  const C = D.cob, R = D.renda, tipo = $("pot-tipo").value;
+  const tipoNome = tipo==="med" ? "assistência médica" : "exclusivamente odontológico";
+  const ufs = potBase(tipo).ufs;
 
   // dados faltantes (nunca estimados)
   const miss = [];
@@ -459,6 +507,7 @@ function renderPot(){
   if (!R) miss.push("Arquivo de renda do IBGE (ibge_renda.json) não foi carregado: renda indisponível.");
   ufs.forEach(u => {
     if (C && u.ben==null) miss.push(`${u.uf}: sem beneficiários no arquivo da ANS.`);
+    else if (C && u.invalida) miss.push(`${u.uf}: população inconsistente (menor que o número de beneficiários); penetração não calculada.`);
     else if (C && !u.pop) miss.push(`${u.uf}: sem população para o período; penetração não calculada.`);
     if (R && u.renda==null) miss.push(`${u.uf}: sem renda publicada.`);
   });
@@ -468,7 +517,7 @@ function renderPot(){
   const fontesPop = [...new Set(ufs.map(u=>u.popFonte).filter(Boolean))];
   $("pot-src").innerHTML =
     `<b>Beneficiários:</b> ANS, Taxa de cobertura de planos de saúde${C?`, período ${C.periodo}`:""} (${tipoNome}). ` +
-    `<b>População:</b> ${fontesPop.length ? fontesPop.map(f=>f==="ANS"?"ANS (mesmo arquivo)":f.replace("IBGE","IBGE, estimativa")).join(", ") : "não disponível"}. ` +
+    `<b>População:</b> ${fontesPop.length ? fontesPop.map(f=>f==="ANS"?"ANS (arquivo de cobertura, onde o IBGE faltou)":f.replace("IBGE","IBGE, estimativa")).join(", ") : "não disponível"}. ` +
     `<br><b>Renda:</b> ${R ? `${R.indicador}, ${R.ano}. Indicador usado: renda domiciliar per capita, pois o IBGE não publica renda familiar média por estado.` : "não disponível"}`;
 
   // Brasil
@@ -539,7 +588,7 @@ function renderPot(){
       $("pot-scatter").innerHTML = g + qlabels.join("");
     }
     $("pot-leg").innerHTML = Object.entries(REGCOR).map(([r,c])=>`<span><i style="background:${c}"></i>${r}</span>`).join("") +
-      `<span>Linhas tracejadas = média Brasil. Siglas em negrito = foco Ramo (CO+SE).</span>`;
+      `<span>Linhas tracejadas = média Brasil.</span>`;
   }
 
   // quadrantes
@@ -569,7 +618,169 @@ function renderPot(){
     "Quadrantes: corte na penetração do Brasil (calculada com os mesmos dados) e na renda per capita do Brasil publicada pelo IBGE. A renda é nominal e do ano indicado na fonte, que pode ser diferente do período dos beneficiários.";
 }
 
-function refresh(){ buildChips(); compute(); renderKpis(); renderRank(); renderLine(); renderBars(); renderMun(); renderPot(); }
+// --- Análise de Potencial · Por operadora
+let potView = "geral", opSel = [];
+const OPTOT = {};
+for (const [mi,uf,cd,ci,q] of D.series) if (mi===last) OPTOT[cd] = (OPTOT[cd]||0) + q;
+const OPLIST = Object.keys(OPTOT).map(cd => ({cd, n:(D.ops[cd]||{}).n||cd, m:(D.ops[cd]||{}).m||"", t:OPTOT[cd]})).sort((a,b)=>b.t-a.t);
+const UFS_SERIES = new Set(D.series.map(r=>r[1]));
+const norm = s => String(s).normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
+// posição de cada UF no mapa em blocos (coluna, linha)
+const TILE = {RR:[2,0],AP:[4,0],AM:[1,1],PA:[3,1],MA:[4,1],CE:[5,1],RN:[6,1],AC:[0,2],RO:[1,2],TO:[3,2],PI:[4,2],PE:[5,2],PB:[6,2],
+  MT:[2,3],GO:[3,3],BA:[4,3],SE:[5,3],AL:[6,3],MS:[2,4],DF:[3,4],MG:[4,4],ES:[5,4],PR:[2,5],SP:[3,5],RJ:[4,5],SC:[2,6],RS:[2,7]};
+const OPW = [["cres","Crescimento das operadoras na UF (12 meses)",30],["renda","Renda domiciliar per capita",25],
+  ["espaco","Espaço livre (100% − penetração)",20],["sem","Pessoas sem plano (volume)",15],["pres","Presença atual (beneficiários)",10]];
+
+function scoreColor(v){ // 0..100 → roxo escuro → violeta → laranja
+  const st = [[0,[46,30,84]],[50,[139,92,246]],[100,[232,151,44]]];
+  const t = Math.max(0,Math.min(100,v)); let a=st[0], b=st[2];
+  for (let i=0;i<st.length-1;i++) if (t>=st[i][0] && t<=st[i+1][0]){ a=st[i]; b=st[i+1]; break; }
+  const k = (t-a[0])/((b[0]-a[0])||1), c = a[1].map((x,i)=>Math.round(x+(b[1][i]-x)*k));
+  return `rgb(${c.join(",")})`;
+}
+
+function opContrOk(ci){
+  const v = $("op-contr").value;
+  if (v==="") return ci<=3;
+  if (v==="coletivo") return ci===1 || ci===2;
+  return String(ci)===v;
+}
+
+function renderOpSearch(){
+  const q = norm($("op-q").value.trim()), res = $("op-res");
+  if (!q){ res.innerHTML=""; res.classList.add("hidden"); return; }
+  const m = OPLIST.filter(o => !opSel.includes(o.cd) && (norm(o.n).includes(q) || norm(o.cd).includes(q))).slice(0,12);
+  res.innerHTML = m.length ? m.map(o=>`<div class="opt" data-cd="${esc(o.cd)}"><b>${esc(o.n)}</b><span>Registro ${esc(o.cd)} · ${esc(o.m)} · ${fmt(o.t)} beneficiários</span></div>`).join("")
+    : `<div class="opt none">Nenhuma operadora encontrada nos dados carregados.</div>`;
+  res.classList.remove("hidden");
+  res.querySelectorAll(".opt[data-cd]").forEach(el => el.onclick = () => {
+    if (opSel.length < 10) opSel.push(el.dataset.cd);
+    $("op-q").value = ""; renderOpSearch(); renderOp(); $("op-q").focus();
+  });
+}
+
+function renderOp(){
+  if (potView!=="op") return;
+  $("op-chips").innerHTML = opSel.map(cd=>`<span class="chip on" data-cd="${esc(cd)}" title="Remover">${esc(((D.ops[cd]||{}).n||cd).slice(0,42))}<span class="x">✕</span></span>`).join("") +
+    (opSel.length>1 ? `<span class="chip" id="op-clear">Limpar seleção</span>` : "");
+  $("op-chips").querySelectorAll(".chip[data-cd]").forEach(el => el.onclick = () => { opSel = opSel.filter(c=>c!==el.dataset.cd); renderOp(); });
+  if ($("op-clear")) $("op-clear").onclick = () => { opSel = []; renderOp(); };
+  const body = $("op-body");
+  if (!opSel.length){
+    body.innerHTML = `<div class="empty">Busque e selecione uma ou mais operadoras.<br>O painel mostra em quais estados elas têm beneficiários e quais estados combinam melhor crescimento, renda e espaço de mercado.</div>`;
+    return;
+  }
+
+  // beneficiários das operadoras selecionadas por UF
+  const sel = new Set(opSel), agg = {};
+  for (const [mi,uf,cd,ci,q] of D.series){
+    if (!sel.has(cd) || !opContrOk(ci) || (mi!==last && mi!==base)) continue;
+    const a = agg[uf] || (agg[uf] = {now:0, base:0, ops:{}});
+    if (mi===last){ a.now += q; a.ops[cd] = (a.ops[cd]||0) + q; }
+    else a.base += q;
+  }
+  const P = potBase("med");
+  const rows = P.ufs.map(u => {
+    const a = agg[u.uf], proc = UFS_SERIES.has(u.uf);
+    const now = a ? a.now : 0, b0 = a ? a.base : 0;
+    return {...u, proc, now, base:b0, ops: a ? a.ops : {}, cres: b0>0 ? now/b0-1 : null,
+            share: (u.ben && now) ? now/u.ben : null, quad: quadOf(u, P.brPen, P.brRenda)};
+  });
+  const pres = rows.filter(r => r.now>0);
+
+  // score de oportunidade (percentil entre as UFs onde as operadoras atuam; critério sem dado sai e o peso é redistribuído)
+  const vals = {cres: pres.map(r=>r.cres).filter(x=>x!=null), renda: pres.map(r=>r.renda).filter(x=>x!=null),
+                espaco: pres.filter(r=>r.pen!=null).map(r=>1-r.pen), sem: pres.map(r=>r.sem).filter(x=>x!=null),
+                pres: pres.map(r=>Math.log(r.now+1))};
+  pres.forEach(r => {
+    const v = {cres:r.cres, renda:r.renda, espaco: r.pen!=null ? 1-r.pen : null, sem:r.sem, pres:Math.log(r.now+1)};
+    let tw=0, acc=0;
+    OPW.forEach(([k,,w]) => { if (v[k]!=null){ tw+=w; acc += w*pctRank(vals[k], v[k]); } });
+    r.score = tw ? 100*acc/tw : null;
+  });
+  pres.sort((a,b)=>(b.score??-1)-(a.score??-1));
+
+  const totNow = sumBy(pres,"now"), totBase = sumBy(pres,"base");
+  const notProc = Object.keys(UFNOME).filter(u=>!UFS_SERIES.has(u));
+  const best = pres[0];
+  const k = [
+    ["Beneficiários das selecionadas", fmt(totNow)],
+    ["Estados onde atuam", `${pres.length}<span class="est"> de ${27-notProc.length}${notProc.length?" com dados":""}</span>`],
+    ["Crescimento em 12 meses", totBase>0 ? pct(totNow/totBase-1) : "—"],
+    ["Melhor estado (oportunidade)", best ? `${best.uf} · ${best.score.toFixed(0)}` : "—"],
+  ];
+
+  // aviso de cobertura dos dados
+  let aviso = "";
+  if (notProc.length) aviso = `<div class="miss"><b>Dados parciais:</b> os beneficiários por operadora desta atualização cobrem só ${[...UFS_SERIES].sort().join(", ")}. ` +
+    `Os demais estados aparecem como “sem dados” (hachurados no mapa), o que não significa que a operadora não atue lá. Para ter o Brasil inteiro, a rotina do GitHub precisa rodar sem o filtro --ufs.</div>`;
+
+  // mapa em blocos
+  const T = 44, G = 4, W = 7*(T+G), H = 8*(T+G);
+  let map = `<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(255,255,255,.12)" stroke-width="2"/></pattern></defs>`;
+  rows.forEach(r => {
+    const [c,l] = TILE[r.uf], x = c*(T+G), y = l*(T+G);
+    const fill = !r.proc ? "url(#hatch)" : r.now>0 ? scoreColor(r.score??0) : "rgba(255,255,255,.04)";
+    const tip = !r.proc ? `${r.nome}: sem dados nesta atualização` : r.now>0 ? `${r.nome}: score ${r.score.toFixed(0)} · ${fmt(r.now)} beneficiários` : `${r.nome}: sem beneficiários das operadoras selecionadas`;
+    map += `<g class="tile"><title>${esc(tip)}</title><rect x="${x}" y="${y}" width="${T}" height="${T}" rx="8" fill="${fill}" stroke="${r.now>0?"rgba(255,255,255,.25)":"var(--line2)"}" ${r.now>0?"":'stroke-dasharray="3 3"'}/>
+      <text x="${x+T/2}" y="${y+(r.now>0?19:26)}" text-anchor="middle" style="font-size:12px;font-weight:700;fill:${r.now>0?"#fff":"var(--dim)"}">${r.uf}</text>
+      ${r.now>0?`<text x="${x+T/2}" y="${y+34}" text-anchor="middle" style="font-size:10px;fill:rgba(255,255,255,.85)">${r.score.toFixed(0)}</text>`:""}</g>`;
+  });
+  const leg = `<div class="leg" style="margin-top:8px"><span><i style="background:${scoreColor(0)}"></i>Score baixo</span><span><i style="background:${scoreColor(50)}"></i>Médio</span><span><i style="background:${scoreColor(100)}"></i>Alto</span><span><i style="background:transparent;border:1px dashed var(--line2)"></i>Sem atuação</span>${notProc.length?`<span><i style="background:repeating-linear-gradient(45deg,rgba(255,255,255,.15) 0 2px,transparent 2px 5px)"></i>Sem dados</span>`:""}</div>`;
+
+  // resumo por região
+  const regRows = Object.keys(REG).map(r => {
+    const us = pres.filter(x=>x.reg===r), n = sumBy(us,"now"), b0 = sumBy(us,"base");
+    return {r, us, n, cres: b0>0 ? n/b0-1 : null, top: us[0], semDados: REG[r].filter(u=>!UFS_SERIES.has(u)).length};
+  }).sort((a,b)=>b.n-a.n);
+  const regTb = `<table><thead><tr><th>Região</th><th>Estados com atuação</th><th>Beneficiários</th><th>Cresc. 12m</th><th>Melhor estado</th></tr></thead><tbody>` +
+    regRows.map(g=>`<tr><td><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${REGCOR[g.r]};margin-right:6px"></i>${g.r}</td>
+      <td>${g.us.length} de ${REG[g.r].length}${g.semDados?` <span class="est">(${g.semDados} sem dados)</span>`:""}</td><td>${g.n?fmt(g.n):"—"}</td>
+      <td>${g.cres==null?"—":`<span class="${g.cres>=0?"pos":"neg"}">${pct(g.cres)}</span>`}</td>
+      <td>${g.top?`<b>${g.top.uf}</b> <span class="est">score ${g.top.score.toFixed(0)}</span>`:"—"}</td></tr>`).join("") + `</tbody></table>`;
+
+  // ranking por UF
+  const multi = opSel.length>1;
+  const ufTb = `<table><thead><tr><th>#</th><th>UF</th><th>Estado</th><th>Score</th><th>Beneficiários</th><th>Cresc. 12m</th><th title="Beneficiários das selecionadas ÷ beneficiários médico-hospitalares da UF">Participação na UF</th><th>Penetração UF</th><th>Renda per capita</th><th>Sem plano</th><th>Perfil do mercado</th></tr></thead><tbody>` +
+    pres.map((r,i)=>{
+      const det = multi ? Object.entries(r.ops).sort((a,b)=>b[1]-a[1]).map(([cd,q])=>`${(D.ops[cd]||{}).n||cd}: ${fmt(q)}`).join("\n") : "";
+      return `<tr><td>${i+1}</td><td><b>${r.uf}</b></td><td>${r.nome}</td>
+        <td><span class="bar" style="width:${Math.max(2,(r.score||0)*0.5)}px;background:${scoreColor(r.score||0)}"></span><b>${r.score.toFixed(0)}</b></td>
+        <td${det?` title="${esc(det)}"`:""}>${fmt(r.now)}${multi?` <span class="est">(${Object.keys(r.ops).length}/${opSel.length})</span>`:""}</td>
+        <td>${r.cres==null?"—":`<span class="${r.cres>=0?"pos":"neg"}">${pct(r.cres)}</span>`}</td>
+        <td>${r.share==null?"—":pctf(r.share)}</td><td>${r.pen==null?"—":pctf(r.pen)}</td>
+        <td>${r.renda==null?"—":brl(r.renda)}</td><td>${r.sem==null?"—":fmt(r.sem)}</td>
+        <td>${r.quad?`<span class="tag" style="background:color-mix(in srgb,${QUAD[r.quad].c} 18%,transparent);color:${QUAD[r.quad].c}">${QUAD[r.quad].t}</span>`:"—"}</td></tr>`;
+    }).join("") + `</tbody></table>`;
+
+  body.innerHTML =
+    `<div class="kpis">${k.map(([a,b])=>`<div class="kpi"><small>${a}</small><strong>${b}</strong></div>`).join("")}</div>` + aviso +
+    (pres.length ? `<h3>Onde atuam e onde há mais oportunidade</h3>
+      <div class="opgrid"><div><svg viewBox="-2 -2 ${W+4} ${H+4}" width="100%" style="max-width:380px" role="img" aria-label="Mapa dos estados por score de oportunidade">${map}</svg>${leg}</div>
+      <div><div class="scroll" style="max-height:none">${regTb}</div></div></div>
+      <h3>Estados ranqueados por oportunidade</h3><div class="scroll">${ufTb}</div>`
+      : `<div class="empty">As operadoras selecionadas não têm beneficiários médico-hospitalares no tipo de contratação escolhido, nos estados com dados.</div>`) +
+    `<div class="note">Score de oportunidade 0–100, comparando só os estados onde as operadoras selecionadas têm beneficiários: ${OPW.map(([,t,w])=>`${t} (${w}%)`).join("; ")}. ` +
+    `Critério sem dado sai do cálculo e o peso é redistribuído. Beneficiários e crescimento: SIB/ANS, médico-hospitalar, ${mesLabel(D.meses[0])} a ${mesLabel(D.meses[last])}, filtrados pelo tipo de contratação escolhido. ` +
+    `Penetração, pessoas sem plano e participação: taxa de cobertura da ANS e população do IBGE (aba Visão geral); a participação compara fontes da ANS de datas próximas, então é aproximada. ` +
+    `Ter beneficiários numa UF indica rede e atuação, mas não garante que a operadora comercialize ali hoje.</div>`;
+}
+
+document.querySelectorAll(".subtab").forEach(b => b.onclick = () => {
+  potView = b.dataset.v;
+  document.querySelectorAll(".subtab").forEach(x=>x.classList.toggle("on",x===b));
+  $("pot-geral").classList.toggle("hidden", potView!=="geral");
+  $("pot-op").classList.toggle("hidden", potView!=="op");
+  $("pot-tipo-wrap").classList.toggle("hidden", potView!=="geral");
+  renderOp();
+});
+$("op-q").addEventListener("input", renderOpSearch);
+$("op-q").addEventListener("keydown", e => { if (e.key==="Escape"){ $("op-q").value=""; renderOpSearch(); } });
+document.addEventListener("click", e => { if (!e.target.closest(".opsearch")) $("op-res").classList.add("hidden"); });
+$("op-contr").addEventListener("input", renderOp);
+
+function refresh(){ buildChips(); compute(); renderKpis(); renderRank(); renderLine(); renderBars(); renderMun(); renderPot(); renderOp(); }
 refresh();
 </script>
 </body>
