@@ -23,17 +23,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install pandas
+      - run: pip install pandas openpyxl
       - uses: actions/cache@v4
         with:
           path: cache
           key: ans-cache-${{ github.run_id }}
           restore-keys: ans-cache-
-      # Foco Ramo. Para o Brasil inteiro, apague "--ufs ..." da linha abaixo.
-      - run: python ans_update.py --ufs GO,MT,MS,DF,SP,RJ,MG,ES
+      # Brasil inteiro (27 UFs). Para limitar, use por exemplo: --ufs GO,MT,MS,DF,SP,RJ,MG,ES
+      - run: python ans_update.py
       - run: |
           mkdir site
-          cp index.html data.js data.json site/
+          cp index.html data.js data.json modelo-comissoes.xlsx site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
