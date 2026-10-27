@@ -45,7 +45,7 @@ const DADOS_URL = {{DADOS_URL}}, LOGIN_URL = {{LOGIN_URL}}, MARCA = {{MARCA}};
 idx, out = sys.argv[1:3]
 h = open(idx, encoding="utf-8").read()
 h = h.replace('<script src="data.js"></script>\n', "")
-h = h.replace('href="modelo-comissoes.xlsx" download', 'href="{{MODELO_URL}}"')
+
 h = h.replace('<div class="actions">', '<div class="actions">\n    {{USUARIO}}', 1)
 h = h.replace("DADOS DE DEMONSTRAÇÃO (fictícios). Rode ans_update.py sem --demo para carregar os dados reais da ANS.",
               "DADOS DE DEMONSTRAÇÃO (fictícios).")
@@ -53,7 +53,7 @@ h = h.replace("</style>", CSS + "</style>", 1)
 a = h.index("<script>\n") + len("<script>\n")
 b = h.index("</script>", a)
 h = h[:a] + "function start(){\n" + h[a:b] + "}\n" + BOOT + h[b:]
-for ph in ("{{DADOS_URL}}", "{{LOGIN_URL}}", "{{MARCA}}", "{{MODELO_URL}}", "{{USUARIO}}"):
+for ph in ("{{DADOS_URL}}", "{{LOGIN_URL}}", "{{MARCA}}", "{{USUARIO}}"):
     assert ph in h, ph
 open(out, "w", encoding="utf-8").write(h)
 print("panel.html gerado")
