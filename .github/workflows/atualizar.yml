@@ -7,17 +7,15 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: painel-ans
+  cancel-in-progress: false
 
 jobs:
-  build:
+  atualizar:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -29,21 +27,38 @@ jobs:
           path: cache
           key: ans-cache-${{ github.run_id }}
           restore-keys: ans-cache-
-      # Brasil inteiro (27 UFs). Para limitar, use por exemplo: --ufs GO,MT,MS,DF,SP,RJ,MG,ES
-      - run: python ans_update.py
-      - run: |
-          mkdir site
-          cp index.html data.js data.json modelo-comissoes.xlsx site/
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.d.outputs.page_url }}
-    steps:
-      - id: d
-        uses: actions/deploy-pages@v4
+      # Brasil inteiro (27 UFs). Para limitar, use por exemplo: --ufs GO,MT,MS,DF,SP,RJ,MG,ES
+      - name: Baixar e processar dados da ANS e do IBGE
+        run: python ans_update.py
+
+      # Cópia de segurança por 7 dias: se o envio falhar, baixe aqui e use o "Envio manual" do painel (Administração > Dados e envio).
+      - name: Guardar cópia dos arquivos
+        uses: actions/upload-artifact@v4
+        with:
+          name: painel-ans-arquivos
+          path: |
+            data.json.gz
+            modelo-comissoes.xlsx
+          retention-days: 7
+
+      - name: Enviar ao painel
+        env:
+          PAINEL_URL: ${{ secrets.RAMO_PAINEL_URL }}
+          PAINEL_TOKEN: ${{ secrets.RAMO_PAINEL_TOKEN }}
+        run: |
+          if [ -z "$PAINEL_URL" ] || [ -z "$PAINEL_TOKEN" ]; then
+            echo "::error::Cadastre os secrets RAMO_PAINEL_URL e RAMO_PAINEL_TOKEN (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+          enviar() {
+            echo "Enviando $2..."
+            curl --fail-with-body -sS --retry 3 --retry-delay 15 --max-time 600 \
+              -X POST "${PAINEL_URL%/}/?r=api/upload&arquivo=$1" \
+              -H "X-Ramo-Token: $PAINEL_TOKEN" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary "@$2"
+            echo
+          }
+          enviar dados data.json.gz
+          enviar modelo modelo-comissoes.xlsx
