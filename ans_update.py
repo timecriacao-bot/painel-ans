@@ -19,6 +19,7 @@ Linhas que comecam com "AVISO:" indicam um conjunto que nao foi lido; o painel
 continua funcionando e apenas tira aquele criterio do score.
 """
 import argparse
+import gzip
 import io
 import json
 import random
@@ -642,7 +643,10 @@ def main():
     txt = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     out = HERE / "data.js"
     out.write_text("window.ANS_DATA = " + txt + ";", encoding="utf-8")
-    (HERE / "data.json").write_text(txt, encoding="utf-8")  # usado pelo plugin do WordPress
+    (HERE / "data.json").write_text(txt, encoding="utf-8")
+    with gzip.open(HERE / "data.json.gz", "wb", compresslevel=9) as gz:  # enviado ao plugin do WordPress
+        gz.write(txt.encode("utf-8"))
+    print(f"data.json.gz: {(HERE / 'data.json.gz').stat().st_size / 1e6:.1f} MB")
     print(f"OK -> {out} e data.json ({out.stat().st_size / 1e6:.1f} MB). Abra index.html no navegador.")
     gerar_modelo_comissoes(wanted, series, ops)
 
