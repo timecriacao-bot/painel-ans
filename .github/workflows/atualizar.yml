@@ -53,12 +53,26 @@ jobs:
           fi
           enviar() {
             echo "Enviando $2..."
-            curl --fail-with-body -sS --retry 3 --retry-delay 15 --max-time 600 \
+            codigo=$(curl -sS --retry 3 --retry-delay 15 --max-time 600 -o resposta.txt -w "%{http_code}" \
               -X POST "${PAINEL_URL%/}/?r=api/upload&arquivo=$1" \
               -H "X-Ramo-Token: $PAINEL_TOKEN" \
               -H "Content-Type: application/octet-stream" \
-              --data-binary "@$2"
-            echo
+              --data-binary "@$2") || codigo="000"
+            resposta=$(head -c 300 resposta.txt 2>/dev/null | tr -d '\r\n')
+            echo "HTTP $codigo: $resposta"
+            case "$codigo" in
+              200) return 0 ;;
+              401) echo "::error::$2: token recusado (HTTP 401). Copie de novo o token em Administração > Dados ANS e atualize o secret RAMO_PAINEL_TOKEN." ;;
+              404) echo "::error::$2: endereço não encontrado (HTTP 404). Confira o secret RAMO_PAINEL_URL (ex.: https://maestro.ramohub.com.br, sem barra no fim)." ;;
+              422) echo "::error::$2: a conferência do painel recusou o arquivo (HTTP 422): $resposta" ;;
+              403|406|429) echo "::error::$2: o firewall da hospedagem bloqueou o envio (HTTP $codigo). Use o Envio manual com o arquivo dos Artifacts e peça à Hostinger para liberar." ;;
+              413) echo "::error::$2: arquivo grande demais para a hospedagem (HTTP 413). Use o Envio manual e peça à Hostinger para aumentar o limite de upload." ;;
+              000) echo "::error::$2: não foi possível conectar ao painel. Confira o RAMO_PAINEL_URL e se o site está no ar com SSL." ;;
+              *) echo "::error::$2: o painel respondeu HTTP $codigo: $resposta" ;;
+            esac
+            return 1
           }
-          enviar dados data.json.gz
-          enviar modelo modelo-comissoes.xlsx
+          falhou=0
+          enviar dados data.json.gz || falhou=1
+          enviar modelo modelo-comissoes.xlsx || falhou=1
+          exit $falhou
